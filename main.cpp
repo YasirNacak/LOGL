@@ -33,7 +33,7 @@ int main() {
 
 	glViewport(0, 0, 800, 600);
 
-	Shader basic_shaders{"Data/Shaders/v_basic.shader", "Data/Shaders/f_basic.shader"};
+	Shader basic_shaders{"Data/Shaders/v_basic.glsl", "Data/Shaders/f_basic.glsl"};
 
 	// Set callback function for window / frame size change so the viewport gets resized
 	glfwSetFramebufferSizeCallback(window, framebuffer_size_callback);
