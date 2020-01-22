@@ -105,27 +105,18 @@ int main() {
 
 	// Create array of vertices and assign it to an array buffer
 	float vertices[] = {
-		0.5f,  0.5f, 0.0f,
-		0.5f, -0.5f, 0.0f,
-		-0.5f, -0.5f, 0.0f,
-		-0.5f,  0.5f, 0.0f
-	};
-	
-	unsigned int indices[] = {
-		0, 1, 3,
-		1, 2, 3
+		-0.9f, -0.5f, 0.0f,
+		-0.0f, -0.5f, 0.0f,
+		-0.45f, 0.5f, 0.0f,
+		0.0f, -0.5f, 0.0f,
+		0.9f, -0.5f, 0.0f,
+		0.45f, 0.5f, 0.0f
 	};
 
 	unsigned int vbo;
 	glGenBuffers(1, &vbo);
 	glBindBuffer(GL_ARRAY_BUFFER, vbo);
 	glBufferData(GL_ARRAY_BUFFER, sizeof(vertices), vertices, GL_STATIC_DRAW);
-
-	// Create EBO
-	unsigned int ebo;
-	glGenBuffers(1, &ebo);
-	glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, ebo);
-	glBufferData(GL_ELEMENT_ARRAY_BUFFER, sizeof(indices), indices, GL_STATIC_DRAW);
 
 	glVertexAttribPointer(0, 3, GL_FLOAT, GL_FALSE, 3 * sizeof(float), (void*)0);
 	glEnableVertexAttribArray(0);
@@ -142,8 +133,7 @@ int main() {
 		// Switch to necessary VAO
 		glBindVertexArray(vao);
 		// Draw currently loaded tris using the currently loaded shader program and the currently loaded VAO
-		glDrawElements(GL_TRIANGLES, 6, GL_UNSIGNED_INT, 0);
-		glBindVertexArray(0);
+		glDrawArrays(GL_TRIANGLES, 0, 6);
 
 		glfwSwapBuffers(window);
 		glfwPollEvents();
