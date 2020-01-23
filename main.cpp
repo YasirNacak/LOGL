@@ -1,5 +1,8 @@
 #include <glad/glad.h>
 #include <GLFW/glfw3.h>
+#include <glm/glm.hpp>
+#include <glm/gtc/matrix_transform.hpp>
+#include <glm/gtc/type_ptr.hpp>
 
 #include <iostream>
 
@@ -140,6 +143,14 @@ int main() {
 
 		basic_shaders.SetInt("texture1", 0);
 		basic_shaders.SetInt("texture2", 1);
+		
+		// transformation
+		glm::mat4 transformation_matrix = glm::mat4(1.0f);
+		transformation_matrix = glm::translate(transformation_matrix, glm::vec3(0.5f, -0.5f, 0.0f));
+		transformation_matrix = glm::rotate(transformation_matrix, (float)glfwGetTime(), glm::vec3(0.0, 0.0, 1.0));
+
+		unsigned int transform_loc = glGetUniformLocation(basic_shaders.GetId(), "transform");
+		glUniformMatrix4fv(transform_loc, 1, GL_FALSE, glm::value_ptr(transformation_matrix));
 
 		// Switch to necessary VAO
 		glBindVertexArray(vao);

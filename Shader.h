@@ -17,6 +17,8 @@ public:
 	void SetInt(const std::string& name, int value) const;
 	void SetFloat(const std::string& name, float value) const;
 
+	unsigned const int GetId() const;
+
 private:
 	unsigned int _program_id;
 };
