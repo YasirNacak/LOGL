@@ -7,7 +7,10 @@
 #include <iostream>
 
 #include "Shader.h"
-#include "stb_image.h"
+#include <stb_image/stb_image.h>
+#include <imgui/imgui.h>
+#include <imgui/imgui_impl_glfw.h>
+#include <imgui/imgui_impl_opengl3.h>
 
 void framebuffer_size_callback(GLFWwindow* window, int width, int height);
 
@@ -18,6 +21,7 @@ void mouse_position_callback(GLFWwindow* window, double x_position, double y_pos
 // Global variables (that will be moved to separate class)
 
 // camera variables
+bool can_control_camera = true;
 glm::vec3 camera_position = glm::vec3(0.0f, 0.0f, 3.0f);
 glm::vec3 camera_front = glm::vec3(0.0f, 0.0f, -1.0f);
 glm::vec3 camera_up = glm::vec3(0.0f, 1.0f, 0.0f);
@@ -49,6 +53,7 @@ int main() {
 	glfwWindowHint(GLFW_CONTEXT_VERSION_MAJOR, 3);
 	glfwWindowHint(GLFW_CONTEXT_VERSION_MINOR, 3);
 	glfwWindowHint(GLFW_OPENGL_PROFILE, GLFW_OPENGL_CORE_PROFILE);
+	glfwSwapInterval(1); // Enable vsync
 
 	// Create window
 	GLFWmonitor* window_monitor = is_window_fullscreen ? glfwGetPrimaryMonitor() : NULL;
@@ -65,6 +70,18 @@ int main() {
 		std::cout << "Failed to initialize GLAD" << std::endl;
 		return -1;
 	}
+
+	ImGui::CreateContext();
+	ImGuiIO& io = ImGui::GetIO(); (void)io;
+	//io.ConfigFlags |= ImGuiConfigFlags_NavEnableKeyboard;     // Enable Keyboard Controls
+	//io.ConfigFlags |= ImGuiConfigFlags_NavEnableGamepad;      // Enable Gamepad Controls
+
+	// Setup Dear ImGui style
+	ImGui::StyleColorsDark();
+	//ImGui::StyleColorsClassic();
+
+	ImGui_ImplGlfw_InitForOpenGL(window, true);
+	ImGui_ImplOpenGL3_Init("#version 330");
 
 	glViewport(0, 0, window_width, window_height);
 
@@ -201,6 +218,11 @@ int main() {
 
 	// Draw loop
 	while (!glfwWindowShouldClose(window)) {
+		ImGui_ImplOpenGL3_NewFrame();
+		ImGui_ImplGlfw_NewFrame();
+		ImGui::NewFrame();
+		ImGui::Render();
+
 		float current_frame_time = glfwGetTime();
 		delta_time = current_frame_time - last_frame_time;
 		last_frame_time = current_frame_time;
@@ -260,10 +282,17 @@ int main() {
 		// Unbind
 		glBindVertexArray(0);
 
+		ImGui_ImplOpenGL3_RenderDrawData(ImGui::GetDrawData());
+
 		glfwSwapBuffers(window);
 		glfwPollEvents();
 	}
 
+	ImGui_ImplOpenGL3_Shutdown();
+	ImGui_ImplGlfw_Shutdown();
+	ImGui::DestroyContext();
+
+	glfwDestroyWindow(window);
 	glfwTerminate();
 	return 0;
 }
@@ -290,36 +319,49 @@ void process_input(GLFWwindow* window) {
 	}
 
 	// Camera movement
-	float current_camera_speed = base_camera_speed * delta_time;
-	if (glfwGetKey(window, GLFW_KEY_W) == GLFW_PRESS) {
-		camera_position += current_camera_speed * camera_front;
-	}
-	if (glfwGetKey(window, GLFW_KEY_S) == GLFW_PRESS) {
-		camera_position -= current_camera_speed * camera_front;
-	}
-	if (glfwGetKey(window, GLFW_KEY_A) == GLFW_PRESS) {
-		camera_position -= glm::normalize(glm::cross(camera_front, camera_up)) * current_camera_speed;
-	}
-	if (glfwGetKey(window, GLFW_KEY_D) == GLFW_PRESS) {
-		camera_position += glm::normalize(glm::cross(camera_front, camera_up)) * current_camera_speed;
-	}
-	if (glfwGetKey(window, GLFW_KEY_SPACE) == GLFW_PRESS) {
-		camera_position += current_camera_speed * camera_up;
-	}
-	if (glfwGetKey(window, GLFW_KEY_LEFT_CONTROL) == GLFW_PRESS) {
-		camera_position += current_camera_speed * -camera_up;
-	}
-	if (glfwGetKey(window, GLFW_KEY_C) == GLFW_PRESS) {
-		camera_pitch = 0.0f;
-		camera_yaw = -90.0f;
-		camera_position = glm::vec3(0.0f, 0.0f, 3.0f);
-		camera_front = glm::vec3(0.0f, 0.0f, -1.0f);
-		camera_up = glm::vec3(0.0f, 1.0f, 0.0f);
+	if (can_control_camera) {
+		float current_camera_speed = base_camera_speed * delta_time;
+		if (glfwGetKey(window, GLFW_KEY_W) == GLFW_PRESS) {
+			camera_position += current_camera_speed * camera_front;
+		}
+		if (glfwGetKey(window, GLFW_KEY_S) == GLFW_PRESS) {
+			camera_position -= current_camera_speed * camera_front;
+		}
+		if (glfwGetKey(window, GLFW_KEY_A) == GLFW_PRESS) {
+			camera_position -= glm::normalize(glm::cross(camera_front, camera_up)) * current_camera_speed;
+		}
+		if (glfwGetKey(window, GLFW_KEY_D) == GLFW_PRESS) {
+			camera_position += glm::normalize(glm::cross(camera_front, camera_up)) * current_camera_speed;
+		}
+		if (glfwGetKey(window, GLFW_KEY_SPACE) == GLFW_PRESS) {
+			camera_position += current_camera_speed * camera_up;
+		}
+		if (glfwGetKey(window, GLFW_KEY_LEFT_CONTROL) == GLFW_PRESS) {
+			camera_position += current_camera_speed * -camera_up;
+		}
+		if (glfwGetKey(window, GLFW_KEY_C) == GLFW_PRESS) {
+			camera_pitch = 0.0f;
+			camera_yaw = -90.0f;
+			camera_position = glm::vec3(0.0f, 0.0f, 3.0f);
+			camera_front = glm::vec3(0.0f, 0.0f, -1.0f);
+			camera_up = glm::vec3(0.0f, 1.0f, 0.0f);
+		}
 	}
 	
+	// GUI Mode - Camera Mode switch
+	if (glfwGetKey(window, GLFW_KEY_F1) == GLFW_PRESS) {
+		can_control_camera = false;
+		glfwSetInputMode(window, GLFW_CURSOR, GLFW_CURSOR_NORMAL);
+	}
+	if (glfwGetKey(window, GLFW_KEY_F2) == GLFW_PRESS) {
+		can_control_camera = true;
+		glfwSetInputMode(window, GLFW_CURSOR, GLFW_CURSOR_DISABLED);
+	}
 }
 
 void mouse_position_callback(GLFWwindow* window, double x_position, double y_position) {
+	if (!can_control_camera) return;
+
 	float x_offset = x_position - mouse_last_x;
 	float y_offset = mouse_last_y - y_position; // reversed since y-coordinates range from bottom to top
 	mouse_last_x = x_position;
