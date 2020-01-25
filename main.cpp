@@ -30,9 +30,13 @@ float delta_time = 0.0f;
 float last_frame_time = 0.0f;
 
 // window variables
-int window_width = 1280;
-int window_height = 720;
-bool is_window_fullscreen = false;
+//int window_width = 1280;
+//int window_height = 720;
+//bool is_window_fullscreen = false;
+
+int window_width = 1920;
+int window_height = 1080;
+bool is_window_fullscreen = true;
 
 // mouse input variables
 float mouse_last_x = window_width / 2.0f;
@@ -299,6 +303,20 @@ void process_input(GLFWwindow* window) {
 	if (glfwGetKey(window, GLFW_KEY_D) == GLFW_PRESS) {
 		camera_position += glm::normalize(glm::cross(camera_front, camera_up)) * current_camera_speed;
 	}
+	if (glfwGetKey(window, GLFW_KEY_SPACE) == GLFW_PRESS) {
+		camera_position += current_camera_speed * camera_up;
+	}
+	if (glfwGetKey(window, GLFW_KEY_LEFT_CONTROL) == GLFW_PRESS) {
+		camera_position += current_camera_speed * -camera_up;
+	}
+	if (glfwGetKey(window, GLFW_KEY_C) == GLFW_PRESS) {
+		camera_pitch = 0.0f;
+		camera_yaw = -90.0f;
+		camera_position = glm::vec3(0.0f, 0.0f, 3.0f);
+		camera_front = glm::vec3(0.0f, 0.0f, -1.0f);
+		camera_up = glm::vec3(0.0f, 1.0f, 0.0f);
+	}
+	
 }
 
 void mouse_position_callback(GLFWwindow* window, double x_position, double y_position) {
