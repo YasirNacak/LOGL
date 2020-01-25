@@ -13,6 +13,32 @@ void framebuffer_size_callback(GLFWwindow* window, int width, int height);
 
 void process_input(GLFWwindow* window);
 
+void mouse_position_callback(GLFWwindow* window, double x_position, double y_position);
+
+// Global variables (that will be moved to separate class)
+
+// camera variables
+glm::vec3 camera_position = glm::vec3(0.0f, 0.0f, 3.0f);
+glm::vec3 camera_front = glm::vec3(0.0f, 0.0f, -1.0f);
+glm::vec3 camera_up = glm::vec3(0.0f, 1.0f, 0.0f);
+float base_camera_speed = 2.5f;
+float camera_pitch = 0.0f;
+float camera_yaw = -90.0f;
+
+// frame - time variables
+float delta_time = 0.0f;
+float last_frame_time = 0.0f;
+
+// window variables
+int window_width = 1280;
+int window_height = 720;
+bool is_window_fullscreen = false;
+
+// mouse input variables
+float mouse_last_x = window_width / 2.0f;
+float mouse_last_y = window_height / 2.0f;
+float mouse_sensitivity = 0.05f;
+
 int main() {
 	// Initialize GLFW / OpenGL variables
 	glfwInit();
@@ -21,7 +47,8 @@ int main() {
 	glfwWindowHint(GLFW_OPENGL_PROFILE, GLFW_OPENGL_CORE_PROFILE);
 
 	// Create window
-	GLFWwindow* window = glfwCreateWindow(800, 600, "LOGL", NULL, NULL);
+	GLFWmonitor* window_monitor = is_window_fullscreen ? glfwGetPrimaryMonitor() : NULL;
+	GLFWwindow* window = glfwCreateWindow(window_width, window_height, "LOGL", window_monitor, NULL);
 	if (window == NULL) {
 		std::cout << "Failed to create GLFW window" << std::endl;
 		glfwTerminate();
@@ -35,9 +62,13 @@ int main() {
 		return -1;
 	}
 
-	glViewport(0, 0, 800, 600);
+	glViewport(0, 0, window_width, window_height);
 
 	glEnable(GL_DEPTH_TEST);
+
+	glfwSetInputMode(window, GLFW_CURSOR, GLFW_CURSOR_DISABLED);
+
+	glfwSetCursorPosCallback(window, mouse_position_callback);
 
 	Shader basic_shaders{"Data/Shaders/v_basic.glsl", "Data/Shaders/f_basic.glsl"};
 
@@ -166,9 +197,12 @@ int main() {
 
 	// Draw loop
 	while (!glfwWindowShouldClose(window)) {
+		float current_frame_time = glfwGetTime();
+		delta_time = current_frame_time - last_frame_time;
+		last_frame_time = current_frame_time;
 		process_input(window);
 
-		glClearColor(0.1f, 0.4f, 0.2f, 1.0f);
+		glClearColor(0.0f, 46.0f / 255.0f, 102.0f / 255.0f, 1.0f);
 		glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
 		
 		glActiveTexture(GL_TEXTURE0);
@@ -181,12 +215,20 @@ int main() {
 		basic_shaders.SetInt("texture1", 0);
 		basic_shaders.SetInt("texture2", 1);
 
-		// Set matrices for View and Projection Steps
-		glm::mat4 view = glm::mat4(1.0f);
-		view = glm::translate(view, glm::vec3(0.0f, 0.0f, -3.0f));
+		// Set camera variables (work that is being done in LookAt)
+		// glm::vec3 camera_position = glm::vec3(0.0f, 0.0f, 3.0f);
+		// glm::vec3 camera_target = glm::vec3(0.0f, 0.0f, 0.0f);
+		// glm::vec3 camera_direction = glm::normalize(camera_position - camera_target);
+		// glm::vec3 world_up = glm::vec3(0.0f, 1.0f, 0.0f);
+		// glm::vec3 camera_right = glm::normalize(glm::cross(world_up, camera_direction));
+		// glm::vec3 camera_up = glm::cross(camera_direction, camera_right);
+
+		// Set view matrix based on the camera using LookAt
+		glm::mat4 view;
+		view = glm::lookAt(camera_position, camera_position + camera_front, camera_up);
 
 		glm::mat4 projection = glm::mat4(1.0f);
-		projection = glm::perspective(glm::radians(45.0f), 800.0f / 600.0f, 0.1f, 100.0f);
+		projection = glm::perspective(glm::radians(45.0f), (float)window_width / (float)window_height, 0.1f, 100.0f);
 
 		// set matrix values for view and projection matrices
 		int view_matrix_loc = glGetUniformLocation(basic_shaders.GetId(), "view");
@@ -228,14 +270,59 @@ void framebuffer_size_callback(GLFWwindow* window, int width, int height) {
 
 void process_input(GLFWwindow* window) {
 	// Input handling goes here...
+	
+	// Application exit
 	if (glfwGetKey(window, GLFW_KEY_ESCAPE) == GLFW_PRESS) {
 		glfwSetWindowShouldClose(window, true);
 	}
-	else if (glfwGetKey(window, GLFW_KEY_RIGHT_BRACKET) == GLFW_PRESS)
+	
+	// Wireframe mode control
+	if (glfwGetKey(window, GLFW_KEY_RIGHT_BRACKET) == GLFW_PRESS)
 	{
 		glPolygonMode(GL_FRONT_AND_BACK, GL_FILL);
 	}
 	else if(glfwGetKey(window, GLFW_KEY_LEFT_BRACKET) == GLFW_PRESS) {
 		glPolygonMode(GL_FRONT_AND_BACK, GL_LINE);
 	}
+
+	// Camera movement
+	float current_camera_speed = base_camera_speed * delta_time;
+	if (glfwGetKey(window, GLFW_KEY_W) == GLFW_PRESS) {
+		camera_position += current_camera_speed * camera_front;
+	}
+	if (glfwGetKey(window, GLFW_KEY_S) == GLFW_PRESS) {
+		camera_position -= current_camera_speed * camera_front;
+	}
+	if (glfwGetKey(window, GLFW_KEY_A) == GLFW_PRESS) {
+		camera_position -= glm::normalize(glm::cross(camera_front, camera_up)) * current_camera_speed;
+	}
+	if (glfwGetKey(window, GLFW_KEY_D) == GLFW_PRESS) {
+		camera_position += glm::normalize(glm::cross(camera_front, camera_up)) * current_camera_speed;
+	}
+}
+
+void mouse_position_callback(GLFWwindow* window, double x_position, double y_position) {
+	float x_offset = x_position - mouse_last_x;
+	float y_offset = mouse_last_y - y_position; // reversed since y-coordinates range from bottom to top
+	mouse_last_x = x_position;
+	mouse_last_y = y_position;
+
+	x_offset *= mouse_sensitivity;
+	y_offset *= mouse_sensitivity;
+
+	camera_yaw += x_offset;
+	camera_pitch += y_offset;
+
+	if (camera_pitch > 89.0f) {
+		camera_pitch = 89.0f;
+	}
+	if (camera_pitch < -89.0f) {
+		camera_pitch = -89.0f;
+	}
+
+	glm::vec3 direction;
+	direction.x = cos(glm::radians(camera_yaw)) * cos(glm::radians(camera_pitch));
+	direction.y = sin(glm::radians(camera_pitch));
+	direction.z = sin(glm::radians(camera_yaw)) * cos(glm::radians(camera_pitch));
+	camera_front = glm::normalize(direction);
 }
