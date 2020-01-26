@@ -55,6 +55,18 @@ float mouse_sensitivity = 0.05f;
 // debug menu variables
 bool show_debug_menu = false;
 
+// object data
+glm::vec3 light_position = glm::vec3(1.2f, 1.0f, 2.0f);
+glm::vec3 light_color = glm::vec3(1.0f, 1.0f, 1.0f);
+
+glm::vec3 cube_position = glm::vec3(0.0f, 0.0f, 0.0f);
+glm::vec3 cube_color = glm::vec3(1.0f, 0.5f, 0.31f);
+
+// light data
+float ambient_light_amount = 0.1f;
+float specular_light_amount = 0.5f;
+int cube_specular_shininness = 5;
+
 int main() {
 	// Initialize GLFW / OpenGL variables
 	glfwInit();
@@ -104,47 +116,47 @@ int main() {
 	// Create array of vertices and assign it to an array buffer
 	// This array includes vertex positions
 	float cube_vertices[] = {
-		-0.5f, -0.5f, -0.5f,
-		0.5f, -0.5f, -0.5f,
-		0.5f,  0.5f, -0.5f,
-		0.5f,  0.5f, -0.5f,
-		-0.5f,  0.5f, -0.5f,
-		-0.5f, -0.5f, -0.5f,
+		-0.5f, -0.5f, -0.5f,  0.0f,  0.0f, -1.0f,
+		 0.5f, -0.5f, -0.5f,  0.0f,  0.0f, -1.0f,
+		 0.5f,  0.5f, -0.5f,  0.0f,  0.0f, -1.0f,
+		 0.5f,  0.5f, -0.5f,  0.0f,  0.0f, -1.0f,
+		-0.5f,  0.5f, -0.5f,  0.0f,  0.0f, -1.0f,
+		-0.5f, -0.5f, -0.5f,  0.0f,  0.0f, -1.0f,
 
-		-0.5f, -0.5f,  0.5f,
-		0.5f, -0.5f,  0.5f,
-		0.5f,  0.5f,  0.5f,
-		0.5f,  0.5f,  0.5f,
-		-0.5f,  0.5f,  0.5f,
-		-0.5f, -0.5f,  0.5f,
+		-0.5f, -0.5f,  0.5f,  0.0f,  0.0f, 1.0f,
+		 0.5f, -0.5f,  0.5f,  0.0f,  0.0f, 1.0f,
+		 0.5f,  0.5f,  0.5f,  0.0f,  0.0f, 1.0f,
+		 0.5f,  0.5f,  0.5f,  0.0f,  0.0f, 1.0f,
+		-0.5f,  0.5f,  0.5f,  0.0f,  0.0f, 1.0f,
+		-0.5f, -0.5f,  0.5f,  0.0f,  0.0f, 1.0f,
 
-		-0.5f,  0.5f,  0.5f,
-		-0.5f,  0.5f, -0.5f,
-		-0.5f, -0.5f, -0.5f,
-		-0.5f, -0.5f, -0.5f,
-		-0.5f, -0.5f,  0.5f,
-		-0.5f,  0.5f,  0.5f,
+		-0.5f,  0.5f,  0.5f, -1.0f,  0.0f,  0.0f,
+		-0.5f,  0.5f, -0.5f, -1.0f,  0.0f,  0.0f,
+		-0.5f, -0.5f, -0.5f, -1.0f,  0.0f,  0.0f,
+		-0.5f, -0.5f, -0.5f, -1.0f,  0.0f,  0.0f,
+		-0.5f, -0.5f,  0.5f, -1.0f,  0.0f,  0.0f,
+		-0.5f,  0.5f,  0.5f, -1.0f,  0.0f,  0.0f,
 
-		0.5f,  0.5f,  0.5f,
-		0.5f,  0.5f, -0.5f,
-		0.5f, -0.5f, -0.5f,
-		0.5f, -0.5f, -0.5f,
-		0.5f, -0.5f,  0.5f,
-		0.5f,  0.5f,  0.5f,
+		 0.5f,  0.5f,  0.5f,  1.0f,  0.0f,  0.0f,
+		 0.5f,  0.5f, -0.5f,  1.0f,  0.0f,  0.0f,
+		 0.5f, -0.5f, -0.5f,  1.0f,  0.0f,  0.0f,
+		 0.5f, -0.5f, -0.5f,  1.0f,  0.0f,  0.0f,
+		 0.5f, -0.5f,  0.5f,  1.0f,  0.0f,  0.0f,
+		 0.5f,  0.5f,  0.5f,  1.0f,  0.0f,  0.0f,
 
-		-0.5f, -0.5f, -0.5f,
-		0.5f, -0.5f, -0.5f,
-		0.5f, -0.5f,  0.5f,
-		0.5f, -0.5f,  0.5f,
-		-0.5f, -0.5f,  0.5,
-		-0.5f, -0.5f, -0.5f,
+		-0.5f, -0.5f, -0.5f,  0.0f, -1.0f,  0.0f,
+		 0.5f, -0.5f, -0.5f,  0.0f, -1.0f,  0.0f,
+		 0.5f, -0.5f,  0.5f,  0.0f, -1.0f,  0.0f,
+		 0.5f, -0.5f,  0.5f,  0.0f, -1.0f,  0.0f,
+		-0.5f, -0.5f,  0.5f,  0.0f, -1.0f,  0.0f,
+		-0.5f, -0.5f, -0.5f,  0.0f, -1.0f,  0.0f,
 
-		-0.5f,  0.5f, -0.5f,
-		0.5f,  0.5f, -0.5f,
-		0.5f,  0.5f,  0.5f,
-		0.5f,  0.5f,  0.5f,
-		-0.5f,  0.5f,  0.5,
-		-0.5f,  0.5f, -0.5f
+		-0.5f,  0.5f, -0.5f,  0.0f,  1.0f,  0.0f,
+		 0.5f,  0.5f, -0.5f,  0.0f,  1.0f,  0.0f,
+		 0.5f,  0.5f,  0.5f,  0.0f,  1.0f,  0.0f,
+		 0.5f,  0.5f,  0.5f,  0.0f,  1.0f,  0.0f,
+		-0.5f,  0.5f,  0.5f,  0.0f,  1.0f,  0.0f,
+		-0.5f,  0.5f, -0.5f,  0.0f,  1.0f,  0.0f
 	};
 
 	// CUBE
@@ -158,8 +170,12 @@ int main() {
 	glBindBuffer(GL_ARRAY_BUFFER, cube_vbo);
 	glBufferData(GL_ARRAY_BUFFER, sizeof(cube_vertices), cube_vertices, GL_STATIC_DRAW);
 
-	glVertexAttribPointer(0, 3, GL_FLOAT, GL_FALSE, 3 * sizeof(float), (void*)0);
+	glVertexAttribPointer(0, 3, GL_FLOAT, GL_FALSE, 6 * sizeof(float), (void*)0);
 	glEnableVertexAttribArray(0);
+
+	// normal attribute
+	glVertexAttribPointer(1, 3, GL_FLOAT, GL_FALSE, 6 * sizeof(float), (void*)(3 * sizeof(float)));
+	glEnableVertexAttribArray(1);
 
 	// LIGHT
 	unsigned int light_vao;
@@ -172,7 +188,7 @@ int main() {
 	glBindBuffer(GL_ARRAY_BUFFER, light_vbo);
 	glBufferData(GL_ARRAY_BUFFER, sizeof(cube_vertices), cube_vertices, GL_STATIC_DRAW);
 	
-	glVertexAttribPointer(0, 3, GL_FLOAT, GL_FALSE, 3 * sizeof(float), (void*)0);
+	glVertexAttribPointer(0, 3, GL_FLOAT, GL_FALSE, 6 * sizeof(float), (void*)0);
 	glEnableVertexAttribArray(0);
 
 	// Draw loop
@@ -199,11 +215,9 @@ int main() {
 		projection = glm::perspective(glm::radians(45.0f), (float)window_width / (float)window_height, 0.1f, 100.0f);
 		
 		// Draw Light Source
-		glm::vec3 light_color = glm::vec3(1.0f, 1.0f, 1.0f);
 		{
 			light_source_shaders.Use();
 
-			glm::vec3 light_position = glm::vec3(1.2f, 1.0f, 2.0f);
 			glm::vec3 light_scale = glm::vec3(0.2f);
 
 			glm::mat4 model = glm::mat4(1.0f);
@@ -224,9 +238,6 @@ int main() {
 		{
 			lit_object_shaders.Use();
 
-			glm::vec3 cube_color = glm::vec3(1.0f, 0.5f, 0.31f);
-			glm::vec3 cube_position = glm::vec3(0.0f, 0.0f, 0.0f);
-
 			glm::mat4 model = glm::mat4(1.0f);
 			model = glm::translate(model, cube_position);
 
@@ -235,6 +246,11 @@ int main() {
 			lit_object_shaders.SetMatrix4("projection", projection);
 			lit_object_shaders.SetVec3("object_color", cube_color);
 			lit_object_shaders.SetVec3("light_color", light_color);
+			lit_object_shaders.SetFloat("ambient_light_amount", ambient_light_amount);
+			lit_object_shaders.SetFloat("specular_light_amount", specular_light_amount);
+			lit_object_shaders.SetInt("specular_shininess", cube_specular_shininness);
+			lit_object_shaders.SetVec3("light_position", light_position);
+			lit_object_shaders.SetVec3("camera_position", camera_position);
 
 			glBindVertexArray(cube_vao);
 			glDrawArrays(GL_TRIANGLES, 0, 36);
@@ -302,20 +318,14 @@ void process_input(GLFWwindow* window) {
 	
 	// Imgui enable - disable switch
 	if (glfwGetKey(window, GLFW_KEY_F1) == GLFW_PRESS) {
+		show_debug_menu = true;
 		can_control_camera = false;
 		glfwSetInputMode(window, GLFW_CURSOR, GLFW_CURSOR_NORMAL);
 	}
 	if (glfwGetKey(window, GLFW_KEY_F2) == GLFW_PRESS) {
+		show_debug_menu = false;
 		can_control_camera = true;
 		glfwSetInputMode(window, GLFW_CURSOR, GLFW_CURSOR_DISABLED);
-	}
-
-	// GUI Mode - Camera Mode switch
-	if (glfwGetKey(window, GLFW_KEY_F3) == GLFW_PRESS) {
-		show_debug_menu = true;
-	}
-	if (glfwGetKey(window, GLFW_KEY_F4) == GLFW_PRESS) {
-		show_debug_menu = false;
 	}
 }
 
@@ -354,11 +364,19 @@ void render_debug_menu() {
 	ImGui_ImplGlfw_NewFrame();
 	ImGui::NewFrame();
 
-	ImGui::SetNextWindowSize(ImVec2(window_width / 6, window_height));
+	ImGui::SetNextWindowSize(ImVec2(window_width / 5.0f, window_height));
 	ImGui::SetNextWindowBgAlpha(0.25f);
 	ImGui::SetNextWindowPos(ImVec2(0, 0));
 	if (ImGui::Begin("Render Variables", NULL, ImGuiWindowFlags_NoResize | ImGuiWindowFlags_NoCollapse | ImGuiWindowFlags_NoMove)) {
 		ImGui::Checkbox("Wireframe", &is_wireframe);
+		ImGui::DragFloat3("Light Pos.", (float*)&light_position, 0.01f);
+		ImGui::DragFloat3("Cube Pos.", (float*)&cube_position, 0.01f);
+		ImGui::ColorEdit3("Light Col. ", (float*)&light_color);
+		ImGui::ColorEdit3("Cube Col. ", (float*)&cube_color);
+		ImGui::Separator();
+		ImGui::SliderFloat("Ambient Amt.", &ambient_light_amount, 0.1f, 1.0f);
+		ImGui::SliderFloat("Specular Amt.", &specular_light_amount, 0.1f, 1.0f);
+		ImGui::SliderInt("Cube Shininess", &cube_specular_shininness, 1, 10);
 		ImGui::End();
 	}
 
