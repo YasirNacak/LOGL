@@ -62,11 +62,6 @@ glm::vec3 light_color = glm::vec3(1.0f, 1.0f, 1.0f);
 glm::vec3 cube_position = glm::vec3(0.0f, 0.0f, 0.0f);
 glm::vec3 cube_color = glm::vec3(1.0f, 0.5f, 0.31f);
 
-// light data
-float ambient_light_amount = 0.1f;
-float specular_light_amount = 0.5f;
-int cube_specular_shininness = 5;
-
 int main() {
 	// Initialize GLFW / OpenGL variables
 	glfwInit();
@@ -216,6 +211,15 @@ int main() {
 		
 		// Draw Light Source
 		{
+			glm::vec3 light_diffuse_color = light_color * glm::vec3(0.5f);
+			glm::vec3 light_ambient_color = light_diffuse_color * glm::vec3(0.2f);
+
+			lit_object_shaders.Use();
+			lit_object_shaders.SetVec3("light.position", light_position);
+			lit_object_shaders.SetVec3("light.diffuse", light_diffuse_color);
+			lit_object_shaders.SetVec3("light.ambient", light_ambient_color);
+			lit_object_shaders.SetVec3("light.specular", glm::vec3(1.0f, 1.0f, 1.0f));
+
 			light_source_shaders.Use();
 
 			glm::vec3 light_scale = glm::vec3(0.2f);
@@ -244,13 +248,15 @@ int main() {
 			lit_object_shaders.SetMatrix4("model", model);
 			lit_object_shaders.SetMatrix4("view", view);
 			lit_object_shaders.SetMatrix4("projection", projection);
-			lit_object_shaders.SetVec3("object_color", cube_color);
+
+			// Set material properties
 			lit_object_shaders.SetVec3("light_color", light_color);
-			lit_object_shaders.SetFloat("ambient_light_amount", ambient_light_amount);
-			lit_object_shaders.SetFloat("specular_light_amount", specular_light_amount);
-			lit_object_shaders.SetInt("specular_shininess", cube_specular_shininness);
 			lit_object_shaders.SetVec3("light_position", light_position);
 			lit_object_shaders.SetVec3("camera_position", camera_position);
+			lit_object_shaders.SetVec3("material.ambient", cube_color);
+			lit_object_shaders.SetVec3("material.diffuse", cube_color);
+			lit_object_shaders.SetVec3("material.specular", glm::vec3(0.5f, 0.5f, 0.5f));
+			lit_object_shaders.SetFloat("material.shininess", 32.0f);
 
 			glBindVertexArray(cube_vao);
 			glDrawArrays(GL_TRIANGLES, 0, 36);
@@ -374,9 +380,6 @@ void render_debug_menu() {
 		ImGui::ColorEdit3("Light Col. ", (float*)&light_color);
 		ImGui::ColorEdit3("Cube Col. ", (float*)&cube_color);
 		ImGui::Separator();
-		ImGui::SliderFloat("Ambient Amt.", &ambient_light_amount, 0.1f, 1.0f);
-		ImGui::SliderFloat("Specular Amt.", &specular_light_amount, 0.1f, 1.0f);
-		ImGui::SliderInt("Cube Shininess", &cube_specular_shininness, 1, 10);
 		ImGui::End();
 	}
 
