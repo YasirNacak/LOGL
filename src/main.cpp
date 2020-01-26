@@ -79,15 +79,10 @@ int main() {
 		return -1;
 	}
 
+	// Initialize Imgui
 	ImGui::CreateContext();
 	ImGuiIO& io = ImGui::GetIO(); (void)io;
-	//io.ConfigFlags |= ImGuiConfigFlags_NavEnableKeyboard;     // Enable Keyboard Controls
-	//io.ConfigFlags |= ImGuiConfigFlags_NavEnableGamepad;      // Enable Gamepad Controls
-
-	// Setup Dear ImGui style
 	ImGui::StyleColorsDark();
-	//ImGui::StyleColorsClassic();
-
 	ImGui_ImplGlfw_InitForOpenGL(window, true);
 	ImGui_ImplOpenGL3_Init("#version 330");
 
@@ -100,130 +95,85 @@ int main() {
 	glfwSetCursorPosCallback(window, mouse_position_callback);
 	glfwSetCursorPos(window, mouse_last_x, mouse_last_y);
 
-	Shader basic_shaders{"Data/Shaders/v_basic.glsl", "Data/Shaders/f_basic.glsl"};
-
-	// Texture loading 1
-	unsigned int tex1_id;
-	glGenTextures(1, &tex1_id);
-	glBindTexture(GL_TEXTURE_2D, tex1_id);
-
-	glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_REPEAT);
-	glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_REPEAT);
-	glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
-	glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
-	
-	int tex1_width, tex1_height, tex1_n_channels;
-	stbi_set_flip_vertically_on_load(true);
-	unsigned char* tex1_data = stbi_load("Data/Textures/plate_grey.jpg", &tex1_width, &tex1_height, &tex1_n_channels, 0);
-	stbi_set_flip_vertically_on_load(false);
-
-	glTexImage2D(GL_TEXTURE_2D, 0, GL_RGB, tex1_width, tex1_height, 0, GL_RGB, GL_UNSIGNED_BYTE, tex1_data);
-	glGenerateMipmap(GL_TEXTURE_2D);
-	stbi_image_free(tex1_data);
-
-	// Texture loading 2
-	unsigned int tex2_id;
-	glGenTextures(1, &tex2_id);
-	glBindTexture(GL_TEXTURE_2D, tex2_id);
-
-	glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_REPEAT);
-	glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_REPEAT);
-	glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
-	glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
-
-	int tex2_width, tex2_height, tex2_n_channels;
-	stbi_set_flip_vertically_on_load(true);
-	unsigned char* tex2_data = stbi_load("Data/Textures/smile.jpg", &tex2_width, &tex2_height, &tex2_n_channels, 0);
-	stbi_set_flip_vertically_on_load(false);
-
-	glTexImage2D(GL_TEXTURE_2D, 0, GL_RGB, tex2_width, tex2_height, 0, GL_RGB, GL_UNSIGNED_BYTE, tex2_data);
-	glGenerateMipmap(GL_TEXTURE_2D);
-	stbi_image_free(tex2_data);
+	Shader lit_object_shaders{ "Data/Shaders/v_lit_object.glsl", "Data/Shaders/f_lit_object.glsl" };
+	Shader light_source_shaders{ "Data/Shaders/v_light_source.glsl", "Data/Shaders/f_light_source.glsl" };
 
 	// Set callback function for window / frame size change so the viewport gets resized
 	glfwSetFramebufferSizeCallback(window, framebuffer_size_callback);
 
-	// Create vertex array object to store upcoming VBO and EBO values in
-	unsigned int vao;
-	glGenVertexArrays(1, &vao);
-
-	// Create vertex buffer object
-	unsigned int vbo;
-	glGenBuffers(1, &vbo);
-
 	// Create array of vertices and assign it to an array buffer
-	// This array includes both vertex positions and texture coordinates
-	// vX, vY, vZ, tU, tV ...
-	float vertices[] = {
-		-0.5f, -0.5f, -0.5f,  0.0f, 0.0f,
-		0.5f, -0.5f, -0.5f,  1.0f, 0.0f,
-		0.5f,  0.5f, -0.5f,  1.0f, 1.0f,
-		0.5f,  0.5f, -0.5f,  1.0f, 1.0f,
-		-0.5f,  0.5f, -0.5f,  0.0f, 1.0f,
-		-0.5f, -0.5f, -0.5f,  0.0f, 0.0f,
+	// This array includes vertex positions
+	float cube_vertices[] = {
+		-0.5f, -0.5f, -0.5f,
+		0.5f, -0.5f, -0.5f,
+		0.5f,  0.5f, -0.5f,
+		0.5f,  0.5f, -0.5f,
+		-0.5f,  0.5f, -0.5f,
+		-0.5f, -0.5f, -0.5f,
 
-		-0.5f, -0.5f,  0.5f,  0.0f, 0.0f,
-		0.5f, -0.5f,  0.5f,  1.0f, 0.0f,
-		0.5f,  0.5f,  0.5f,  1.0f, 1.0f,
-		0.5f,  0.5f,  0.5f,  1.0f, 1.0f,
-		-0.5f,  0.5f,  0.5f,  0.0f, 1.0f,
-		-0.5f, -0.5f,  0.5f,  0.0f, 0.0f,
+		-0.5f, -0.5f,  0.5f,
+		0.5f, -0.5f,  0.5f,
+		0.5f,  0.5f,  0.5f,
+		0.5f,  0.5f,  0.5f,
+		-0.5f,  0.5f,  0.5f,
+		-0.5f, -0.5f,  0.5f,
 
-		-0.5f,  0.5f,  0.5f,  1.0f, 0.0f,
-		-0.5f,  0.5f, -0.5f,  1.0f, 1.0f,
-		-0.5f, -0.5f, -0.5f,  0.0f, 1.0f,
-		-0.5f, -0.5f, -0.5f,  0.0f, 1.0f,
-		-0.5f, -0.5f,  0.5f,  0.0f, 0.0f,
-		-0.5f,  0.5f,  0.5f,  1.0f, 0.0f,
+		-0.5f,  0.5f,  0.5f,
+		-0.5f,  0.5f, -0.5f,
+		-0.5f, -0.5f, -0.5f,
+		-0.5f, -0.5f, -0.5f,
+		-0.5f, -0.5f,  0.5f,
+		-0.5f,  0.5f,  0.5f,
 
-		0.5f,  0.5f,  0.5f,  1.0f, 0.0f,
-		0.5f,  0.5f, -0.5f,  1.0f, 1.0f,
-		0.5f, -0.5f, -0.5f,  0.0f, 1.0f,
-		0.5f, -0.5f, -0.5f,  0.0f, 1.0f,
-		0.5f, -0.5f,  0.5f,  0.0f, 0.0f,
-		0.5f,  0.5f,  0.5f,  1.0f, 0.0f,
+		0.5f,  0.5f,  0.5f,
+		0.5f,  0.5f, -0.5f,
+		0.5f, -0.5f, -0.5f,
+		0.5f, -0.5f, -0.5f,
+		0.5f, -0.5f,  0.5f,
+		0.5f,  0.5f,  0.5f,
 
-		-0.5f, -0.5f, -0.5f,  0.0f, 1.0f,
-		0.5f, -0.5f, -0.5f,  1.0f, 1.0f,
-		0.5f, -0.5f,  0.5f,  1.0f, 0.0f,
-		0.5f, -0.5f,  0.5f,  1.0f, 0.0f,
-		-0.5f, -0.5f,  0.5f,  0.0f, 0.0f,
-		-0.5f, -0.5f, -0.5f,  0.0f, 1.0f,
+		-0.5f, -0.5f, -0.5f,
+		0.5f, -0.5f, -0.5f,
+		0.5f, -0.5f,  0.5f,
+		0.5f, -0.5f,  0.5f,
+		-0.5f, -0.5f,  0.5,
+		-0.5f, -0.5f, -0.5f,
 
-		-0.5f,  0.5f, -0.5f,  0.0f, 1.0f,
-		0.5f,  0.5f, -0.5f,  1.0f, 1.0f,
-		0.5f,  0.5f,  0.5f,  1.0f, 0.0f,
-		0.5f,  0.5f,  0.5f,  1.0f, 0.0f,
-		-0.5f,  0.5f,  0.5f,  0.0f, 0.0f,
-		-0.5f,  0.5f, -0.5f,  0.0f, 1.0f
+		-0.5f,  0.5f, -0.5f,
+		0.5f,  0.5f, -0.5f,
+		0.5f,  0.5f,  0.5f,
+		0.5f,  0.5f,  0.5f,
+		-0.5f,  0.5f,  0.5,
+		-0.5f,  0.5f, -0.5f
 	};
 
-	glBindVertexArray(vao);
+	// CUBE
+	unsigned int cube_vao;
+	glGenVertexArrays(1, &cube_vao);
 
-	glBindBuffer(GL_ARRAY_BUFFER, vbo);
-	glBufferData(GL_ARRAY_BUFFER, sizeof(vertices), vertices, GL_STATIC_DRAW);
+	unsigned int cube_vbo;
+	glGenBuffers(1, &cube_vbo);
 
-	// vertex position attribute
-	glVertexAttribPointer(0, 3, GL_FLOAT, GL_FALSE, 5 * sizeof(float), (void*)0);
+	glBindVertexArray(cube_vao);
+	glBindBuffer(GL_ARRAY_BUFFER, cube_vbo);
+	glBufferData(GL_ARRAY_BUFFER, sizeof(cube_vertices), cube_vertices, GL_STATIC_DRAW);
+
+	glVertexAttribPointer(0, 3, GL_FLOAT, GL_FALSE, 3 * sizeof(float), (void*)0);
 	glEnableVertexAttribArray(0);
 
-	// texture coordinate attribute
-	glVertexAttribPointer(1, 2, GL_FLOAT, GL_FALSE, 5 * sizeof(float), (void*)(3 * sizeof(float)));
-	glEnableVertexAttribArray(1);
+	// LIGHT
+	unsigned int light_vao;
+	glGenVertexArrays(1, &light_vao);
 
-	// Define 10 cubes to render
-	glm::vec3 cubePositions[] = {
-		glm::vec3(0.0f,  0.0f,  0.0f),
-		glm::vec3(2.0f,  5.0f, -15.0f),
-		glm::vec3(-1.5f, -2.2f, -2.5f),
-		glm::vec3(-3.8f, -2.0f, -12.3f),
-		glm::vec3(2.4f, -0.4f, -3.5f),
-		glm::vec3(-1.7f,  3.0f, -7.5f),
-		glm::vec3(1.3f, -2.0f, -2.5f),
-		glm::vec3(1.5f,  2.0f, -2.5f),
-		glm::vec3(1.5f,  0.2f, -1.5f),
-		glm::vec3(-1.3f,  1.0f, -1.5f)
-	};
+	unsigned int light_vbo;
+	glGenBuffers(1, &light_vbo);
+
+	glBindVertexArray(light_vao);
+	glBindBuffer(GL_ARRAY_BUFFER, light_vbo);
+	glBufferData(GL_ARRAY_BUFFER, sizeof(cube_vertices), cube_vertices, GL_STATIC_DRAW);
+	
+	glVertexAttribPointer(0, 3, GL_FLOAT, GL_FALSE, 3 * sizeof(float), (void*)0);
+	glEnableVertexAttribArray(0);
 
 	// Draw loop
 	while (!glfwWindowShouldClose(window)) {
@@ -232,67 +182,65 @@ int main() {
 		last_frame_time = current_frame_time;
 		process_input(window);
 
-		glClearColor(0.0f, 46.0f / 255.0f, 102.0f / 255.0f, 1.0f);
-		glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
-		
-		glActiveTexture(GL_TEXTURE0);
-		glBindTexture(GL_TEXTURE_2D, tex1_id);
-		glActiveTexture(GL_TEXTURE1);
-		glBindTexture(GL_TEXTURE_2D, tex2_id);
-
-		basic_shaders.Use();
-
-		basic_shaders.SetInt("texture1", 0);
-		basic_shaders.SetInt("texture2", 1);
-
-		// Set camera variables (work that is being done in LookAt)
-		// glm::vec3 camera_position = glm::vec3(0.0f, 0.0f, 3.0f);
-		// glm::vec3 camera_target = glm::vec3(0.0f, 0.0f, 0.0f);
-		// glm::vec3 camera_direction = glm::normalize(camera_position - camera_target);
-		// glm::vec3 world_up = glm::vec3(0.0f, 1.0f, 0.0f);
-		// glm::vec3 camera_right = glm::normalize(glm::cross(world_up, camera_direction));
-		// glm::vec3 camera_up = glm::cross(camera_direction, camera_right);
-
-		// Set view matrix based on the camera using LookAt
-		glm::mat4 view;
-		view = glm::lookAt(camera_position, camera_position + camera_front, camera_up);
-
-		glm::mat4 projection = glm::mat4(1.0f);
-		projection = glm::perspective(glm::radians(45.0f), (float)window_width / (float)window_height, 0.1f, 100.0f);
-
-		// set matrix values for view and projection matrices
-		int view_matrix_loc = glGetUniformLocation(basic_shaders.GetId(), "view");
-		glUniformMatrix4fv(view_matrix_loc, 1, GL_FALSE, glm::value_ptr(view));
-
-		int projection_matrix_loc = glGetUniformLocation(basic_shaders.GetId(), "projection");
-		glUniformMatrix4fv(projection_matrix_loc, 1, GL_FALSE, glm::value_ptr(projection));
-
-		// Switch to necessary VAO
-		glBindVertexArray(vao);
-
 		if (is_wireframe) {
 			glPolygonMode(GL_FRONT_AND_BACK, GL_LINE);
 		}
 		else {
 			glPolygonMode(GL_FRONT_AND_BACK, GL_FILL);
 		}
+
+		glClearColor(0.0f, 0.0f, 0.0f, 1.0f);
+		glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
+
+		glm::mat4 view;
+		view = glm::lookAt(camera_position, camera_position + camera_front, camera_up);
+
+		glm::mat4 projection = glm::mat4(1.0f);
+		projection = glm::perspective(glm::radians(45.0f), (float)window_width / (float)window_height, 0.1f, 100.0f);
 		
-		// Render 10 cubes, setting each of their model matrix before rendering
-		for (unsigned int i = 0; i < 10; i++) {
+		// Draw Light Source
+		glm::vec3 light_color = glm::vec3(1.0f, 1.0f, 1.0f);
+		{
+			light_source_shaders.Use();
+
+			glm::vec3 light_position = glm::vec3(1.2f, 1.0f, 2.0f);
+			glm::vec3 light_scale = glm::vec3(0.2f);
+
 			glm::mat4 model = glm::mat4(1.0f);
-			model = glm::translate(model, cubePositions[i]);
-			
-			float angle = 20.0f * i;
-			model = glm::rotate(model, glm::radians(angle), glm::vec3(1.0f, 0.3f, 0.5f));
+			model = glm::translate(model, light_position);
+			model = glm::scale(model, light_scale);
 
-			int model_matrix_loc = glGetUniformLocation(basic_shaders.GetId(), "model");
-			glUniformMatrix4fv(model_matrix_loc, 1, GL_FALSE, glm::value_ptr(model));
+			light_source_shaders.SetMatrix4("model", model);
+			light_source_shaders.SetMatrix4("view", view);
+			light_source_shaders.SetMatrix4("projection", projection);
+			light_source_shaders.SetVec3("light_color", light_color);
 
+			glBindVertexArray(light_vao);
 			glDrawArrays(GL_TRIANGLES, 0, 36);
+			glBindVertexArray(0);
 		}
-		// Unbind
-		glBindVertexArray(0);
 
+		// Draw Cube
+		{
+			lit_object_shaders.Use();
+
+			glm::vec3 cube_color = glm::vec3(1.0f, 0.5f, 0.31f);
+			glm::vec3 cube_position = glm::vec3(0.0f, 0.0f, 0.0f);
+
+			glm::mat4 model = glm::mat4(1.0f);
+			model = glm::translate(model, cube_position);
+
+			lit_object_shaders.SetMatrix4("model", model);
+			lit_object_shaders.SetMatrix4("view", view);
+			lit_object_shaders.SetMatrix4("projection", projection);
+			lit_object_shaders.SetVec3("object_color", cube_color);
+			lit_object_shaders.SetVec3("light_color", light_color);
+
+			glBindVertexArray(cube_vao);
+			glDrawArrays(GL_TRIANGLES, 0, 36);
+			glBindVertexArray(0);
+		}
+		
 		if (show_debug_menu) {
 			render_debug_menu();
 		}
