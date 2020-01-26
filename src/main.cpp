@@ -18,7 +18,12 @@ void process_input(GLFWwindow* window);
 
 void mouse_position_callback(GLFWwindow* window, double x_position, double y_position);
 
+void render_debug_menu();
+
 // Global variables (that will be moved to separate class)
+
+// general render variables
+bool is_wireframe = false;
 
 // camera variables
 bool can_control_camera = true;
@@ -34,18 +39,21 @@ float delta_time = 0.0f;
 float last_frame_time = 0.0f;
 
 // window variables
-//int window_width = 1280;
-//int window_height = 720;
-//bool is_window_fullscreen = false;
+int window_width = 1280;
+int window_height = 720;
+bool is_window_fullscreen = false;
 
-int window_width = 1920;
-int window_height = 1080;
-bool is_window_fullscreen = true;
+//int window_width = 1920;
+//int window_height = 1080;
+//bool is_window_fullscreen = true;
 
 // mouse input variables
 float mouse_last_x = window_width / 2.0f;
 float mouse_last_y = window_height / 2.0f;
 float mouse_sensitivity = 0.05f;
+
+// debug menu variables
+bool show_debug_menu = false;
 
 int main() {
 	// Initialize GLFW / OpenGL variables
@@ -90,6 +98,7 @@ int main() {
 	glfwSetInputMode(window, GLFW_CURSOR, GLFW_CURSOR_DISABLED);
 
 	glfwSetCursorPosCallback(window, mouse_position_callback);
+	glfwSetCursorPos(window, mouse_last_x, mouse_last_y);
 
 	Shader basic_shaders{"Data/Shaders/v_basic.glsl", "Data/Shaders/f_basic.glsl"};
 
@@ -218,11 +227,6 @@ int main() {
 
 	// Draw loop
 	while (!glfwWindowShouldClose(window)) {
-		ImGui_ImplOpenGL3_NewFrame();
-		ImGui_ImplGlfw_NewFrame();
-		ImGui::NewFrame();
-		ImGui::Render();
-
 		float current_frame_time = glfwGetTime();
 		delta_time = current_frame_time - last_frame_time;
 		last_frame_time = current_frame_time;
@@ -265,6 +269,13 @@ int main() {
 
 		// Switch to necessary VAO
 		glBindVertexArray(vao);
+
+		if (is_wireframe) {
+			glPolygonMode(GL_FRONT_AND_BACK, GL_LINE);
+		}
+		else {
+			glPolygonMode(GL_FRONT_AND_BACK, GL_FILL);
+		}
 		
 		// Render 10 cubes, setting each of their model matrix before rendering
 		for (unsigned int i = 0; i < 10; i++) {
@@ -282,7 +293,9 @@ int main() {
 		// Unbind
 		glBindVertexArray(0);
 
-		ImGui_ImplOpenGL3_RenderDrawData(ImGui::GetDrawData());
+		if (show_debug_menu) {
+			render_debug_menu();
+		}
 
 		glfwSwapBuffers(window);
 		glfwPollEvents();
@@ -309,15 +322,6 @@ void process_input(GLFWwindow* window) {
 		glfwSetWindowShouldClose(window, true);
 	}
 	
-	// Wireframe mode control
-	if (glfwGetKey(window, GLFW_KEY_RIGHT_BRACKET) == GLFW_PRESS)
-	{
-		glPolygonMode(GL_FRONT_AND_BACK, GL_FILL);
-	}
-	else if(glfwGetKey(window, GLFW_KEY_LEFT_BRACKET) == GLFW_PRESS) {
-		glPolygonMode(GL_FRONT_AND_BACK, GL_LINE);
-	}
-
 	// Camera movement
 	if (can_control_camera) {
 		float current_camera_speed = base_camera_speed * delta_time;
@@ -348,7 +352,7 @@ void process_input(GLFWwindow* window) {
 		}
 	}
 	
-	// GUI Mode - Camera Mode switch
+	// Imgui enable - disable switch
 	if (glfwGetKey(window, GLFW_KEY_F1) == GLFW_PRESS) {
 		can_control_camera = false;
 		glfwSetInputMode(window, GLFW_CURSOR, GLFW_CURSOR_NORMAL);
@@ -356,6 +360,14 @@ void process_input(GLFWwindow* window) {
 	if (glfwGetKey(window, GLFW_KEY_F2) == GLFW_PRESS) {
 		can_control_camera = true;
 		glfwSetInputMode(window, GLFW_CURSOR, GLFW_CURSOR_DISABLED);
+	}
+
+	// GUI Mode - Camera Mode switch
+	if (glfwGetKey(window, GLFW_KEY_F3) == GLFW_PRESS) {
+		show_debug_menu = true;
+	}
+	if (glfwGetKey(window, GLFW_KEY_F4) == GLFW_PRESS) {
+		show_debug_menu = false;
 	}
 }
 
@@ -380,9 +392,29 @@ void mouse_position_callback(GLFWwindow* window, double x_position, double y_pos
 		camera_pitch = -89.0f;
 	}
 
+	camera_yaw = glm::mod(camera_yaw + x_offset, 360.0f);
+
 	glm::vec3 direction;
 	direction.x = cos(glm::radians(camera_yaw)) * cos(glm::radians(camera_pitch));
 	direction.y = sin(glm::radians(camera_pitch));
 	direction.z = sin(glm::radians(camera_yaw)) * cos(glm::radians(camera_pitch));
 	camera_front = glm::normalize(direction);
+}
+
+void render_debug_menu() {
+	ImGui_ImplOpenGL3_NewFrame();
+	ImGui_ImplGlfw_NewFrame();
+	ImGui::NewFrame();
+
+	ImGui::SetNextWindowSize(ImVec2(window_width / 6, window_height));
+	ImGui::SetNextWindowBgAlpha(0.25f);
+	ImGui::SetNextWindowPos(ImVec2(0, 0));
+	if (ImGui::Begin("Render Variables", NULL, ImGuiWindowFlags_NoResize | ImGuiWindowFlags_NoCollapse | ImGuiWindowFlags_NoMove)) {
+		ImGui::Checkbox("Wireframe", &is_wireframe);
+		ImGui::End();
+	}
+
+	ImGui::Render();
+
+	ImGui_ImplOpenGL3_RenderDrawData(ImGui::GetDrawData());
 }
