@@ -44,6 +44,7 @@ float last_frame_time = 0.0f;
 int window_width = 1280;
 int window_height = 720;
 bool is_window_fullscreen = false;
+glm::vec3 clear_color = glm::vec3(0.0f, 0.0f, 0.0f);
 
 //int window_width = 1920;
 //int window_height = 1080;
@@ -58,11 +59,35 @@ float mouse_sensitivity = 0.05f;
 bool show_debug_menu = false;
 
 // object data
-glm::vec3 light_position = glm::vec3(1.2f, 1.0f, 2.0f);
-glm::vec3 light_color = glm::vec3(1.0f, 1.0f, 1.0f);
 
-glm::vec3 cube_position = glm::vec3(0.0f, 0.0f, 0.0f);
-glm::vec3 cube_color = glm::vec3(1.0f, 0.5f, 0.31f);
+// cube positions
+#define CUBE_COUNT 3
+glm::vec3 cube_positions[] = {
+	glm::vec3(0.0f, 0.0f, 0.0f),
+	glm::vec3(0.0f, 1.0f, 0.0f),
+	glm::vec3(-1.0f, 0.0f, 0.0f),
+};
+
+// point light positions
+#define POINT_LIGHT_COUNT 3
+glm::vec3 point_light_positions[] = {
+	glm::vec3(0.0f, 0.0f, 1.0f),
+	glm::vec3(-1.0f, 0.0f, 1.0f),
+	glm::vec3(0.0f, 1.0f, 1.0f),
+};
+
+// point light colors
+glm::vec3 point_light_colors[] = {
+	glm::vec3(1.0f, 0.0f, 0.0f),
+	glm::vec3(0.0f, 1.0f, 0.0f),
+	glm::vec3(0.0f, 0.0f, 1.0f),
+};
+
+// ambient light variables
+glm::vec3 directional_light_direction = glm::vec3(-0.2f, -1.0f, -0.3f);
+glm::vec3 directional_light_ambient = glm::vec3(0.05f, 0.05f, 0.05f);
+glm::vec3 directional_light_diffuse = glm::vec3(0.4f, 0.4f, 0.4f);
+glm::vec3 directional_light_specular = glm::vec3(0.5f, 0.5f, 0.5f);
 
 int main() {
 	// Initialize GLFW / OpenGL variables
@@ -185,16 +210,6 @@ int main() {
 	unsigned int cube_diffuse_texture = load_texture("Data/Textures/container_diffuse.jpg");
 	unsigned int cube_specular_texture = load_texture("Data/Textures/container_specular.jpg");
 
-	// set texture in the shader once
-	lit_object_shaders.Use();
-	lit_object_shaders.SetInt("material.diffuse", 0);
-	lit_object_shaders.Use();
-	lit_object_shaders.SetInt("material.specular", 1);
-	glActiveTexture(GL_TEXTURE0);
-	glBindTexture(GL_TEXTURE_2D, cube_diffuse_texture);
-	glActiveTexture(GL_TEXTURE1);
-	glBindTexture(GL_TEXTURE_2D, cube_specular_texture);
-
 	// light
 	unsigned int light_vao;
 	glGenVertexArrays(1, &light_vao);
@@ -223,7 +238,7 @@ int main() {
 			glPolygonMode(GL_FRONT_AND_BACK, GL_FILL);
 		}
 
-		glClearColor(0.0f, 0.0f, 0.0f, 1.0f);
+		glClearColor(clear_color.r, clear_color.g, clear_color.b, 1.0f);
 		glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
 
 		glm::mat4 view;
@@ -233,53 +248,91 @@ int main() {
 		projection = glm::perspective(glm::radians(45.0f), (float)window_width / (float)window_height, 0.1f, 100.0f);
 		
 		// Draw Light Source
-		{
-			glm::vec3 light_diffuse_color = light_color * glm::vec3(0.5f);
-			glm::vec3 light_ambient_color = light_diffuse_color * glm::vec3(0.2f);
 
+		// directional light
+		lit_object_shaders.Use();
+		lit_object_shaders.SetVec3("directional_light.direction", directional_light_direction);
+		lit_object_shaders.SetVec3("directional_light.ambient", directional_light_ambient);
+		lit_object_shaders.SetVec3("directional_light.diffuse", directional_light_diffuse);
+		lit_object_shaders.SetVec3("directional_light.specular", directional_light_specular);
+
+		// spot light
+		lit_object_shaders.SetVec3("spot_light.position", camera_position);
+		lit_object_shaders.SetVec3("spot_light.direction", camera_front);
+		lit_object_shaders.SetVec3("spot_light.ambient", glm::vec3(0.0f, 0.0f, 0.0f));
+		lit_object_shaders.SetVec3("spot_light.diffuse", glm::vec3(1.0f, 1.0f, 1.0f));
+		lit_object_shaders.SetVec3("spot_light.specular", glm::vec3(1.0f, 1.0f, 1.0f));
+		lit_object_shaders.SetFloat("spot_light.constant", 1.0f);
+		lit_object_shaders.SetFloat("spot_light.linear", 0.09);
+		lit_object_shaders.SetFloat("spot_light.quadratic", 0.032);
+		lit_object_shaders.SetFloat("spot_light.cutoff", glm::cos(glm::radians(12.5f)));
+		lit_object_shaders.SetFloat("spot_light.outer_cutoff", glm::cos(glm::radians(15.0f)));
+
+		// Draw Point Lights
+		for (int i = 0; i < POINT_LIGHT_COUNT; i++) {
 			lit_object_shaders.Use();
-			lit_object_shaders.SetVec3("light.position", light_position);
-			lit_object_shaders.SetVec3("light.diffuse", light_diffuse_color);
-			lit_object_shaders.SetVec3("light.ambient", light_ambient_color);
-			lit_object_shaders.SetVec3("light.specular", glm::vec3(1.0f, 1.0f, 1.0f));
+			char buffer[128];
+
+			sprintf_s(buffer, "point_lights[%i].position", i);
+			lit_object_shaders.SetVec3(buffer, point_light_positions[i]);
+
+			sprintf_s(buffer, "point_lights[%i].constant", i);
+			lit_object_shaders.SetFloat(buffer, 1.0f);
+
+			sprintf_s(buffer, "point_lights[%i].linear", i);
+			lit_object_shaders.SetFloat(buffer, 0.09f);
+
+			sprintf_s(buffer, "point_lights[%i].quadratic", i);
+			lit_object_shaders.SetFloat(buffer, 0.032f);
+
+			sprintf_s(buffer, "point_lights[%i].diffuse", i);
+			lit_object_shaders.SetVec3(buffer, point_light_colors[i]);
+
+			sprintf_s(buffer, "point_lights[%i].ambient", i);
+			lit_object_shaders.SetVec3(buffer, glm::vec3(0.1f));
+
+			sprintf_s(buffer, "point_lights[%i].specular", i);
+			lit_object_shaders.SetVec3(buffer, glm::vec3(1.0f));
 
 			light_source_shaders.Use();
-
-			glm::vec3 light_scale = glm::vec3(0.2f);
-
+			light_source_shaders.SetVec3("light_color", point_light_colors[i]);
+			
 			glm::mat4 model = glm::mat4(1.0f);
-			model = glm::translate(model, light_position);
-			model = glm::scale(model, light_scale);
-
+			model = glm::translate(model, point_light_positions[i]);
+			model = glm::scale(model, glm::vec3(0.2f));
 			light_source_shaders.SetMatrix4("model", model);
 			light_source_shaders.SetMatrix4("view", view);
 			light_source_shaders.SetMatrix4("projection", projection);
-			light_source_shaders.SetVec3("light_color", light_color);
 
 			glBindVertexArray(light_vao);
 			glDrawArrays(GL_TRIANGLES, 0, 36);
 			glBindVertexArray(0);
 		}
 
-		// Draw Cube
+		// Draw Cubes
+		for(int i = 0 ; i < CUBE_COUNT; i++)
 		{
 			lit_object_shaders.Use();
 
 			glm::mat4 model = glm::mat4(1.0f);
-			model = glm::translate(model, cube_position);
+			model = glm::translate(model, cube_positions[i]);
 
 			lit_object_shaders.SetMatrix4("model", model);
 			lit_object_shaders.SetMatrix4("view", view);
 			lit_object_shaders.SetMatrix4("projection", projection);
 
 			// Set material properties
-			lit_object_shaders.SetVec3("light_color", light_color);
-			lit_object_shaders.SetVec3("light_position", light_position);
 			lit_object_shaders.SetVec3("camera_position", camera_position);
-			lit_object_shaders.SetVec3("material.ambient", cube_color);
-			lit_object_shaders.SetVec3("material.diffuse", cube_color);
 			lit_object_shaders.SetVec3("material.specular", glm::vec3(0.5f, 0.5f, 0.5f));
 			lit_object_shaders.SetFloat("material.shininess", 32.0f);
+
+			// Set texture maps
+			glActiveTexture(GL_TEXTURE0);
+			glBindTexture(GL_TEXTURE_2D, cube_diffuse_texture);
+			glActiveTexture(GL_TEXTURE1);
+			glBindTexture(GL_TEXTURE_2D, cube_specular_texture);
+			lit_object_shaders.SetInt("material.diffuse", 0);
+			lit_object_shaders.SetInt("material.specular", 1);
 
 			glBindVertexArray(cube_vao);
 			glDrawArrays(GL_TRIANGLES, 0, 36);
@@ -435,11 +488,36 @@ void render_debug_menu() {
 	ImGui::SetNextWindowPos(ImVec2(0, 0));
 	if (ImGui::Begin("Render Variables", NULL, ImGuiWindowFlags_NoResize | ImGuiWindowFlags_NoCollapse | ImGuiWindowFlags_NoMove)) {
 		ImGui::Checkbox("Wireframe", &is_wireframe);
-		ImGui::DragFloat3("Light Pos.", (float*)&light_position, 0.01f);
-		ImGui::DragFloat3("Cube Pos.", (float*)&cube_position, 0.01f);
-		ImGui::ColorEdit3("Light Col. ", (float*)&light_color);
-		ImGui::ColorEdit3("Cube Col. ", (float*)&cube_color);
+
 		ImGui::Separator();
+
+		ImGui::ColorEdit3("Clear Color", (float*)&clear_color);
+
+		ImGui::Separator();
+
+		ImGui::Text("Cubes");
+		for (int i = 0; i < CUBE_COUNT; i++) {
+			ImGui::PushID(i);
+			ImGui::DragFloat3("Cube Pos.", (float*)&(cube_positions[i]), 0.01f);
+			ImGui::PopID();
+		}
+
+		ImGui::Separator();
+		ImGui::Text("Ambient Light");
+		ImGui::DragFloat3("Direction", (float*)&directional_light_direction, 0.01f);
+		ImGui::ColorEdit3("Ambient", (float*)&directional_light_ambient);
+		ImGui::ColorEdit3("Diffuse", (float*)&directional_light_diffuse);
+		ImGui::ColorEdit3("Specular", (float*)&directional_light_specular);
+
+		ImGui::Separator();
+		ImGui::Text("Spot Lights");
+		for (int i = 0; i < POINT_LIGHT_COUNT; i++) {
+			ImGui::PushID(CUBE_COUNT + i);
+			ImGui::DragFloat3("Point Light Pos.", (float*)&(point_light_positions[i]), 0.01f);
+			ImGui::ColorEdit3("Point Light Col.", (float*)&(point_light_colors[i]));
+			ImGui::PopID();
+		}
+
 		ImGui::End();
 	}
 
