@@ -1,7 +1,9 @@
 #version 330 core
 layout (location = 0) in vec3 in_pos;
 layout (location = 1) in vec3 in_normal;
+layout (location = 2) in vec2 in_tex_coords;
 
+out vec2 texture_coords;
 out vec3 vertex_normal;
 out vec3 vertex_world_position;
 
@@ -17,6 +19,9 @@ void main() {
 	// vec3 version for diffuse lighting, vec4 version for the mvp
 	vec4 world_position = model * pos_vec4;
 	vertex_world_position = vec3(world_position);
+
+	// set texture coordinates
+	texture_coords = in_tex_coords;
 
 	gl_Position = projection * view * world_position;
 }
