@@ -1,4 +1,4 @@
-newmtl evelynn_diffuse
+newmtl voidwalker
 Ns 225.000000
 Ka 1.000000 1.000000 1.000000
 Kd 0.500000 0.500000 0.500000
@@ -7,4 +7,5 @@ Ke 0.000000 0.000000 0.000000
 Ni 1.450000
 d 1.000000
 illum 2
-map_Kd evelynn_diffuse.jpg
+map_Kd voidwalker_diffuse.jpg
+map_Ks voidwalker_specular.jpg

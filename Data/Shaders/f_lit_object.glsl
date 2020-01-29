@@ -68,11 +68,11 @@ void main() {
 
     result += directional_light_influence(directional_light, normal, camera_direction);
 
-    for(int i = 0; i < N_POINT_LIGHTS; i++) {
+    /*for(int i = 0; i < N_POINT_LIGHTS; i++) {
         result += point_light_influence(point_lights[i], normal, vertex_world_position, camera_direction);    
     }
     
-    result += spot_light_influence(spot_light, normal, vertex_world_position, camera_direction);    
+    result += spot_light_influence(spot_light, normal, vertex_world_position, camera_direction);*/
     
     out_color = vec4(result, 1.0);
 }
