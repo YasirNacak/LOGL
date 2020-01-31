@@ -16,6 +16,8 @@
 
 void draw_model(Model model, Shader shader, glm::vec3 camera_position, glm::mat4 m_model, glm::mat4 m_view, glm::mat4 m_projection);
 
+unsigned int load_cubemap(std::vector<std::string> faces);
+
 void framebuffer_size_callback(GLFWwindow* window, int width, int height);
 
 void process_input(GLFWwindow* window);
@@ -93,7 +95,7 @@ glm::vec3 directional_light_specular = glm::vec3(0.5f, 0.5f, 0.5f);
 float fog_intensity = 0.1f;
 
 // debug variable
-bool is_render_doc = true;
+bool is_render_doc = false;
 
 int main() {
 	if (is_render_doc) {
@@ -145,6 +147,7 @@ int main() {
 	Shader light_source_shaders{ "Data/Shaders/v_light_source.glsl", "Data/Shaders/f_light_source.glsl" };
 	Shader framebuffer_screen_shaders{ "Data/Shaders/v_framebuffer_screen.glsl", "Data/Shaders/f_framebuffer_screen.glsl" };
 	Shader depth_shaders{ "Data/Shaders/v_depth.glsl", "Data/Shaders/f_depth.glsl" };
+	Shader skybox_shaders{ "Data/Shaders/v_skybox.glsl", "Data/Shaders/f_skybox.glsl" };
 
 	// Set callback function for window / frame size change so the viewport gets resized
 	glfwSetFramebufferSizeCallback(window, framebuffer_size_callback);
@@ -194,7 +197,52 @@ int main() {
 		-0.5f,  0.5f, -0.5f,
 	};
 
-	float quadVertices[] = {
+	float skybox_vertices[] = {
+		// positions          
+		-1.0f,  1.0f, -1.0f,
+		-1.0f, -1.0f, -1.0f,
+		 1.0f, -1.0f, -1.0f,
+		 1.0f, -1.0f, -1.0f,
+		 1.0f,  1.0f, -1.0f,
+		-1.0f,  1.0f, -1.0f,
+
+		-1.0f, -1.0f,  1.0f,
+		-1.0f, -1.0f, -1.0f,
+		-1.0f,  1.0f, -1.0f,
+		-1.0f,  1.0f, -1.0f,
+		-1.0f,  1.0f,  1.0f,
+		-1.0f, -1.0f,  1.0f,
+
+		 1.0f, -1.0f, -1.0f,
+		 1.0f, -1.0f,  1.0f,
+		 1.0f,  1.0f,  1.0f,
+		 1.0f,  1.0f,  1.0f,
+		 1.0f,  1.0f, -1.0f,
+		 1.0f, -1.0f, -1.0f,
+
+		-1.0f, -1.0f,  1.0f,
+		-1.0f,  1.0f,  1.0f,
+		 1.0f,  1.0f,  1.0f,
+		 1.0f,  1.0f,  1.0f,
+		 1.0f, -1.0f,  1.0f,
+		-1.0f, -1.0f,  1.0f,
+
+		-1.0f,  1.0f, -1.0f,
+		 1.0f,  1.0f, -1.0f,
+		 1.0f,  1.0f,  1.0f,
+		 1.0f,  1.0f,  1.0f,
+		-1.0f,  1.0f,  1.0f,
+		-1.0f,  1.0f, -1.0f,
+
+		-1.0f, -1.0f, -1.0f,
+		-1.0f, -1.0f,  1.0f,
+		 1.0f, -1.0f, -1.0f,
+		 1.0f, -1.0f, -1.0f,
+		-1.0f, -1.0f,  1.0f,
+		 1.0f, -1.0f,  1.0f
+	};
+
+	float quad_vertices[] = {
 		-1.0f,  1.0f,  0.0f, 1.0f,
 		-1.0f, -1.0f,  0.0f, 0.0f,
 		 1.0f, -1.0f,  1.0f, 0.0f,
@@ -205,16 +253,40 @@ int main() {
 	};
 
 	// screen quad VAO
-	unsigned int quadVAO, quadVBO;
-	glGenVertexArrays(1, &quadVAO);
-	glGenBuffers(1, &quadVBO);
-	glBindVertexArray(quadVAO);
-	glBindBuffer(GL_ARRAY_BUFFER, quadVBO);
-	glBufferData(GL_ARRAY_BUFFER, sizeof(quadVertices), &quadVertices, GL_STATIC_DRAW);
+	unsigned int quad_vao, quad_vbo;
+	glGenVertexArrays(1, &quad_vao);
+	glGenBuffers(1, &quad_vbo);
+	glBindVertexArray(quad_vao);
+	glBindBuffer(GL_ARRAY_BUFFER, quad_vbo);
+	glBufferData(GL_ARRAY_BUFFER, sizeof(quad_vertices), &quad_vertices, GL_STATIC_DRAW);
 	glEnableVertexAttribArray(0);
 	glVertexAttribPointer(0, 2, GL_FLOAT, GL_FALSE, 4 * sizeof(float), (void*)0);
 	glEnableVertexAttribArray(1);
 	glVertexAttribPointer(1, 2, GL_FLOAT, GL_FALSE, 4 * sizeof(float), (void*)(2 * sizeof(float)));
+
+	// skybox VAO
+	unsigned int skybox_vao, skybox_vbo;
+	glGenVertexArrays(1, &skybox_vao);
+	glGenBuffers(1, &skybox_vbo);
+	glBindVertexArray(skybox_vao);
+	glBindBuffer(GL_ARRAY_BUFFER, skybox_vbo);
+	glBufferData(GL_ARRAY_BUFFER, sizeof(skybox_vertices), &skybox_vertices, GL_STATIC_DRAW);
+	glEnableVertexAttribArray(0);
+	glVertexAttribPointer(0, 3, GL_FLOAT, GL_FALSE, 3 * sizeof(float), (void*)0);
+
+	std::vector<std::string> skybox_faces {
+		"Data/Textures/skybox_cloudtop/cloudtop_rt.jpg",
+		"Data/Textures/skybox_cloudtop/cloudtop_lf.jpg",
+		"Data/Textures/skybox_cloudtop/cloudtop_up.jpg",
+		"Data/Textures/skybox_cloudtop/cloudtop_dn.jpg",
+		"Data/Textures/skybox_cloudtop/cloudtop_ft.jpg",
+		"Data/Textures/skybox_cloudtop/cloudtop_bk.jpg"
+	};
+
+	unsigned int cubemap_texture = load_cubemap(skybox_faces);
+
+	skybox_shaders.Use();
+	skybox_shaders.SetInt("skybox", 0);
 
 	// light
 	unsigned int light_vao;
@@ -232,7 +304,8 @@ int main() {
 
 	Model test_model1("Data/Models/Evelynn/evelynn.obj");
 	Model test_model2("Data/Models/Voidwalker/voidwalker.obj");
-	Model sponza_model("Data/Models/Sponza/sponza.obj");
+	
+	Model sponza_model("Data/Models/Sponza/sponza.obj", false);
 
 	Model terrain_model = Terrain::Generate("Data/Textures/grass.jpg");
 
@@ -323,7 +396,7 @@ int main() {
 			directional_lit_object_shaders.SetVec3("directional_light.specular", directional_light_specular);
 		}
 
-		if (false) {
+		if (true) {
 			{
 				directional_lit_object_shaders.SetFloat("tiling", 1.0f);
 				glm::mat4 model = glm::mat4(1.0f);
@@ -346,7 +419,7 @@ int main() {
 			}
 		}
 		
-		if(true)
+		if(false)
 		{
 			directional_lit_object_shaders.SetFloat("tiling", 1.0f);
 			glm::mat4 model = glm::mat4(1.0f);
@@ -355,8 +428,22 @@ int main() {
 			draw_model(sponza_model, directional_lit_object_shaders, camera_position, model, view, projection);
 		}
 
-		// render depth to texture
+		// draw skybox as last
+		glDepthFunc(GL_LEQUAL);  // change depth function so depth test passes when values are equal to depth buffer's content
+		skybox_shaders.Use();
+		glm::mat4 skybox_view = glm::mat4(glm::mat3(view));
+		skybox_shaders.SetMatrix4("view", skybox_view);
+		skybox_shaders.SetMatrix4("projection", projection);
+		// skybox cube
+		glBindVertexArray(skybox_vao);
+		glActiveTexture(GL_TEXTURE0);
+		glBindTexture(GL_TEXTURE_CUBE_MAP, cubemap_texture);
+		glDrawArrays(GL_TRIANGLES, 0, 36);
+		glBindVertexArray(0);
+		glDepthFunc(GL_LESS);
 
+		
+		// render depth to texture
 		glBindFramebuffer(GL_FRAMEBUFFER, depth_framebuffer);
 		glEnable(GL_DEPTH_TEST);
 		glClearColor(clear_color.r, clear_color.g, clear_color.b, 1.0f);
@@ -364,7 +451,7 @@ int main() {
 
 		depth_shaders.Use();
 		
-		if (false) {
+		if (true) {
 			{
 				glm::mat4 model = glm::mat4(1.0f);
 				model = glm::translate(model, glm::vec3(0.5f, 0.0f, 0.0f));
@@ -384,7 +471,7 @@ int main() {
 			}
 		}
 
-		if(true)
+		if(false)
 		{
 			glm::mat4 model = glm::mat4(1.0f);
 			model = glm::translate(model, glm::vec3(0.0f, 0.0f, 0.0f));
@@ -410,7 +497,7 @@ int main() {
 		glActiveTexture(GL_TEXTURE1);
 		glBindTexture(GL_TEXTURE_2D, texture_depth_framebuffer);
 
-		glBindVertexArray(quadVAO);
+		glBindVertexArray(quad_vao);
 		glDrawArrays(GL_TRIANGLES, 0, 6);
 
 		/*
@@ -550,6 +637,36 @@ void draw_model(Model model, Shader shader, glm::vec3 camera_position, glm::mat4
 	shader.SetMatrix4("view", m_view);
 	shader.SetMatrix4("projection", m_projection);
 	model.Draw(shader);
+}
+
+unsigned int load_cubemap(std::vector<std::string> faces)
+{
+	unsigned int textureID;
+	glGenTextures(1, &textureID);
+	glBindTexture(GL_TEXTURE_CUBE_MAP, textureID);
+
+	int width, height, nrChannels;
+	for (unsigned int i = 0; i < faces.size(); i++)
+	{
+		unsigned char* data = stbi_load(faces[i	].c_str(), &width, &height, &nrChannels, 0);
+		if (data)
+		{
+			glTexImage2D(GL_TEXTURE_CUBE_MAP_POSITIVE_X + i, 0, GL_RGB, width, height, 0, GL_RGB, GL_UNSIGNED_BYTE, data);
+			stbi_image_free(data);
+		}
+		else
+		{
+			std::cout << "Cubemap texture failed to load at path: " << faces[i] << std::endl;
+			stbi_image_free(data);
+		}
+	}
+	glTexParameteri(GL_TEXTURE_CUBE_MAP, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
+	glTexParameteri(GL_TEXTURE_CUBE_MAP, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
+	glTexParameteri(GL_TEXTURE_CUBE_MAP, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE);
+	glTexParameteri(GL_TEXTURE_CUBE_MAP, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE);
+	glTexParameteri(GL_TEXTURE_CUBE_MAP, GL_TEXTURE_WRAP_R, GL_CLAMP_TO_EDGE);
+
+	return textureID;
 }
 
 void framebuffer_size_callback(GLFWwindow* window, int width, int height) {

@@ -4,8 +4,10 @@ Model::Model(std::vector<Mesh> meshes) {
 	this->_meshes = meshes;
 }
 
-Model::Model(std::string path) {
-	Load(path);
+Model::Model(std::string path, bool load_immediately) {
+	if (load_immediately) {
+		Load(path);
+	}
 }
 
 void Model::Draw(Shader shader) {

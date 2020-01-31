@@ -14,7 +14,7 @@
 class Model {
 public:
 	Model(std::vector<Mesh> meshes);
-	Model(std::string path);
+	Model(std::string path, bool load_immediately = true);
 	void Draw(Shader shader);
 
 private:
