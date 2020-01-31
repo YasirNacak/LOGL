@@ -1,8 +1,8 @@
 #version 330 core
 
 struct Material {
-	sampler2D diffuse;
-	sampler2D specular;
+	sampler2D texture_diffuse0;
+	sampler2D texture_specular0;
 	float shininess;
 };
 
@@ -53,9 +53,9 @@ vec3 point_light_influence(PointLight light_source, vec3 normal, vec3 vertex_wor
     float attenuation = 1.0 / 
     (light_source.constant + light_source.linear * distance + light_source.quadratic * (distance * distance));    
     
-    vec3 ambient = light_source.ambient  * vec3(texture(material.diffuse, texture_coords));
-    vec3 diffuse = light_source.diffuse  * diffuse_factor * vec3(texture(material.diffuse, texture_coords));
-    vec3 specular = light_source.specular * specular_factor * vec3(texture(material.specular, texture_coords));
+    vec3 ambient = light_source.ambient  * vec3(texture(material.texture_diffuse0, texture_coords));
+    vec3 diffuse = light_source.diffuse  * diffuse_factor * vec3(texture(material.texture_diffuse0, texture_coords));
+    vec3 specular = light_source.specular * specular_factor * vec3(texture(material.texture_specular0, texture_coords));
     
     ambient *= attenuation;
     diffuse *= attenuation;

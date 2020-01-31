@@ -89,6 +89,7 @@
     <ClCompile Include="src\Mesh.cpp" />
     <ClCompile Include="src\Model.cpp" />
     <ClCompile Include="src\Shader.cpp" />
+    <ClCompile Include="src\Terrain.cpp" />
     <ClCompile Include="src\Texture.cpp" />
     <ClCompile Include="vendor\glad\glad.c" />
     <ClCompile Include="vendor\imgui\imgui.cpp" />
@@ -103,6 +104,7 @@
     <ClInclude Include="src\Mesh.h" />
     <ClInclude Include="src\Model.h" />
     <ClInclude Include="src\Shader.h" />
+    <ClInclude Include="src\Terrain.h" />
     <ClInclude Include="src\Texture.h" />
     <ClInclude Include="src\Vertex.h" />
     <ClInclude Include="vendor\imgui\imconfig.h" />

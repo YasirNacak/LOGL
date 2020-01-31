@@ -1,5 +1,9 @@
 #include "Model.h"
 
+Model::Model(std::vector<Mesh> meshes) {
+	this->_meshes = meshes;
+}
+
 Model::Model(std::string path) {
 	Load(path);
 }

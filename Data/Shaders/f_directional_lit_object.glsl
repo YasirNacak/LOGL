@@ -26,6 +26,11 @@ uniform DirectionalLight directional_light;
 uniform vec3 camera_position;
 
 void main() {
+    vec4 texture_color = texture(material.texture_diffuse0, texture_coords);
+    if(texture_color.a < 0.5) {
+        discard;
+    }
+    
     vec3 normal = normalize(vertex_normal);
     vec3 camera_direction = normalize(camera_position - vertex_world_position);
     vec3 result = directional_light_influence(directional_light, normal, camera_direction);

@@ -8,6 +8,7 @@
 
 #include "Shader.h"
 #include "Model.h"
+#include "Terrain.h"
 #include <stb_image/stb_image.h>
 #include <imgui/imgui.h>
 #include <imgui/imgui_impl_glfw.h>
@@ -45,7 +46,7 @@ float last_frame_time = 0.0f;
 int window_width = 1280;
 int window_height = 720;
 bool is_window_fullscreen = false;
-glm::vec3 clear_color = glm::vec3(0.0f, 0.0f, 0.0f);
+glm::vec3 clear_color = glm::vec3(65.0f / 255.0f, 103.0f / 255.0f, 115.0f / 255.0f);
 
 //int window_width = 1920;
 //int window_height = 1080;
@@ -84,12 +85,15 @@ glm::vec3 point_light2_color = glm::vec3(1.0f, 1.0f, 1.0f);
 
 // ambient light variables
 glm::vec3 directional_light_direction = glm::vec3(-0.2f, -1.0f, -0.3f);
-glm::vec3 directional_light_ambient = glm::vec3(0.05f, 0.05f, 0.05f);
+glm::vec3 directional_light_ambient = clear_color;
 glm::vec3 directional_light_diffuse = glm::vec3(0.4f, 0.4f, 0.4f);
 glm::vec3 directional_light_specular = glm::vec3(0.5f, 0.5f, 0.5f);
 
+// post processing variables
+float fog_intensity = 0.1f;
+
 // debug variable
-bool is_render_doc = false;
+bool is_render_doc = true;
 
 int main() {
 	if (is_render_doc) {
@@ -139,6 +143,8 @@ int main() {
 	Shader point_lit_object_shaders{ "Data/Shaders/v_point_lit_object.glsl", "Data/Shaders/f_point_lit_object.glsl" };
 	Shader directional_lit_object_shaders{ "Data/Shaders/v_directional_lit_object.glsl", "Data/Shaders/f_directional_lit_object.glsl" };
 	Shader light_source_shaders{ "Data/Shaders/v_light_source.glsl", "Data/Shaders/f_light_source.glsl" };
+	Shader framebuffer_screen_shaders{ "Data/Shaders/v_framebuffer_screen.glsl", "Data/Shaders/f_framebuffer_screen.glsl" };
+	Shader depth_shaders{ "Data/Shaders/v_depth.glsl", "Data/Shaders/f_depth.glsl" };
 
 	// Set callback function for window / frame size change so the viewport gets resized
 	glfwSetFramebufferSizeCallback(window, framebuffer_size_callback);
@@ -188,6 +194,28 @@ int main() {
 		-0.5f,  0.5f, -0.5f,
 	};
 
+	float quadVertices[] = {
+		-1.0f,  1.0f,  0.0f, 1.0f,
+		-1.0f, -1.0f,  0.0f, 0.0f,
+		 1.0f, -1.0f,  1.0f, 0.0f,
+
+		-1.0f,  1.0f,  0.0f, 1.0f,
+		 1.0f, -1.0f,  1.0f, 0.0f,
+		 1.0f,  1.0f,  1.0f, 1.0f
+	};
+
+	// screen quad VAO
+	unsigned int quadVAO, quadVBO;
+	glGenVertexArrays(1, &quadVAO);
+	glGenBuffers(1, &quadVBO);
+	glBindVertexArray(quadVAO);
+	glBindBuffer(GL_ARRAY_BUFFER, quadVBO);
+	glBufferData(GL_ARRAY_BUFFER, sizeof(quadVertices), &quadVertices, GL_STATIC_DRAW);
+	glEnableVertexAttribArray(0);
+	glVertexAttribPointer(0, 2, GL_FLOAT, GL_FALSE, 4 * sizeof(float), (void*)0);
+	glEnableVertexAttribArray(1);
+	glVertexAttribPointer(1, 2, GL_FLOAT, GL_FALSE, 4 * sizeof(float), (void*)(2 * sizeof(float)));
+
 	// light
 	unsigned int light_vao;
 	glGenVertexArrays(1, &light_vao);
@@ -204,6 +232,59 @@ int main() {
 
 	Model test_model1("Data/Models/Evelynn/evelynn.obj");
 	Model test_model2("Data/Models/Voidwalker/voidwalker.obj");
+	Model sponza_model("Data/Models/Sponza/sponza.obj");
+
+	Model terrain_model = Terrain::Generate("Data/Textures/grass.jpg");
+
+	// framebuffer configuration
+	// -------------------------
+	unsigned int color_framebuffer;
+	glGenFramebuffers(1, &color_framebuffer);
+	glBindFramebuffer(GL_FRAMEBUFFER, color_framebuffer);
+	// create a color attachment texture
+	unsigned int texture_color_framebuffer;
+	glGenTextures(1, &texture_color_framebuffer);
+	glBindTexture(GL_TEXTURE_2D, texture_color_framebuffer);
+	glTexImage2D(GL_TEXTURE_2D, 0, GL_RGB, window_width, window_height, 0, GL_RGB, GL_UNSIGNED_BYTE, NULL);
+	glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
+	glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
+	glFramebufferTexture2D(GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT0, GL_TEXTURE_2D, texture_color_framebuffer, 0);
+	// create a renderbuffer object for depth and stencil attachment (we won't be sampling these)
+	unsigned int rbo_color;
+	glGenRenderbuffers(1, &rbo_color);
+	glBindRenderbuffer(GL_RENDERBUFFER, rbo_color);
+	glRenderbufferStorage(GL_RENDERBUFFER, GL_DEPTH24_STENCIL8, window_width, window_height); // use a single renderbuffer object for both a depth AND stencil buffer.
+	glFramebufferRenderbuffer(GL_FRAMEBUFFER, GL_DEPTH_STENCIL_ATTACHMENT, GL_RENDERBUFFER, rbo_color); // now actually attach it
+	// now that we actually created the framebuffer and added all attachments we want to check if it is actually complete now
+	if (glCheckFramebufferStatus(GL_FRAMEBUFFER) != GL_FRAMEBUFFER_COMPLETE) {
+		std::cout << "ERROR::FRAMEBUFFER:: Framebuffer is not complete!" << std::endl;
+	}
+	glBindFramebuffer(GL_FRAMEBUFFER, 0);
+
+	// framebuffer configuration
+	// -------------------------
+	unsigned int depth_framebuffer;
+	glGenFramebuffers(1, &depth_framebuffer);
+	glBindFramebuffer(GL_FRAMEBUFFER, depth_framebuffer);
+	// create a color attachment texture
+	unsigned int texture_depth_framebuffer;
+	glGenTextures(1, &texture_depth_framebuffer);
+	glBindTexture(GL_TEXTURE_2D, texture_depth_framebuffer);
+	glTexImage2D(GL_TEXTURE_2D, 0, GL_RGB, window_width, window_height, 0, GL_RGB, GL_UNSIGNED_BYTE, NULL);
+	glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
+	glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
+	glFramebufferTexture2D(GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT0, GL_TEXTURE_2D, texture_depth_framebuffer, 0);
+	// create a renderbuffer object for depth and stencil attachment (we won't be sampling these)
+	unsigned int rbo_depth;
+	glGenRenderbuffers(1, &rbo_depth);
+	glBindRenderbuffer(GL_RENDERBUFFER, rbo_depth);
+	glRenderbufferStorage(GL_RENDERBUFFER, GL_DEPTH_COMPONENT24, window_width, window_height); // use a single renderbuffer object for both a depth AND stencil buffer.
+	glFramebufferRenderbuffer(GL_FRAMEBUFFER, GL_DEPTH_ATTACHMENT, GL_RENDERBUFFER, rbo_depth); // now actually attach it
+	// now that we actually created the framebuffer and added all attachments we want to check if it is actually complete now
+	if (glCheckFramebufferStatus(GL_FRAMEBUFFER) != GL_FRAMEBUFFER_COMPLETE) {
+		std::cout << "ERROR::FRAMEBUFFER:: Framebuffer is not complete!" << std::endl;
+	}
+	glBindFramebuffer(GL_FRAMEBUFFER, 0);
 
 	// Draw loop
 	while (!glfwWindowShouldClose(window)) {
@@ -219,6 +300,8 @@ int main() {
 			glPolygonMode(GL_FRONT_AND_BACK, GL_FILL);
 		}
 
+		glBindFramebuffer(GL_FRAMEBUFFER, color_framebuffer);
+		glEnable(GL_DEPTH_TEST);
 		glClearColor(clear_color.r, clear_color.g, clear_color.b, 1.0f);
 		glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
 
@@ -228,8 +311,8 @@ int main() {
 		glm::mat4 projection = glm::mat4(1.0f);
 		projection = glm::perspective(glm::radians(45.0f), (float)window_width / (float)window_height, 0.1f, 100.0f);
 		
-		glDepthFunc(GL_LESS);
-		glDisable(GL_BLEND);
+		/*glDepthFunc(GL_LESS);
+		glDisable(GL_BLEND);*/
 
 		// directional light
 		{
@@ -240,23 +323,102 @@ int main() {
 			directional_lit_object_shaders.SetVec3("directional_light.specular", directional_light_specular);
 		}
 
+		if (false) {
+			{
+				directional_lit_object_shaders.SetFloat("tiling", 1.0f);
+				glm::mat4 model = glm::mat4(1.0f);
+				model = glm::translate(model, glm::vec3(0.5f, 0.0f, 0.0f));
+				draw_model(test_model1, directional_lit_object_shaders, camera_position, model, view, projection);
+			}
+
+			{
+				directional_lit_object_shaders.SetFloat("tiling", 1.0f);
+				glm::mat4 model = glm::mat4(1.0f);
+				model = glm::translate(model, glm::vec3(-0.5f, 0.0f, 0.0f));
+				draw_model(test_model2, directional_lit_object_shaders, camera_position, model, view, projection);
+			}
+
+			{
+				directional_lit_object_shaders.SetFloat("tiling", 40.0f);
+				glm::mat4 model = glm::mat4(1.0f);
+				model = glm::translate(model, glm::vec3(-30.0f, -1.0f, -30.0f));
+				draw_model(terrain_model, directional_lit_object_shaders, camera_position, model, view, projection);
+			}
+		}
+		
+		if(true)
 		{
+			directional_lit_object_shaders.SetFloat("tiling", 1.0f);
 			glm::mat4 model = glm::mat4(1.0f);
-			model = glm::translate(model, glm::vec3(0.5f, 0.0f, 0.0f));
-			draw_model(test_model1, directional_lit_object_shaders, camera_position, model, view, projection);
+			model = glm::translate(model, glm::vec3(0.0f, 0.0f, 0.0f));
+			model = glm::scale(model, glm::vec3(0.01f, 0.01f, 0.01f));
+			draw_model(sponza_model, directional_lit_object_shaders, camera_position, model, view, projection);
 		}
 
-		{
-			glm::mat4 model = glm::mat4(1.0f);
-			model = glm::translate(model, glm::vec3(-0.5f, 0.0f, 0.0f));
-			draw_model(test_model2, directional_lit_object_shaders, camera_position, model, view, projection);
+		// render depth to texture
+
+		glBindFramebuffer(GL_FRAMEBUFFER, depth_framebuffer);
+		glEnable(GL_DEPTH_TEST);
+		glClearColor(clear_color.r, clear_color.g, clear_color.b, 1.0f);
+		glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
+
+		depth_shaders.Use();
+		
+		if (false) {
+			{
+				glm::mat4 model = glm::mat4(1.0f);
+				model = glm::translate(model, glm::vec3(0.5f, 0.0f, 0.0f));
+				draw_model(test_model1, depth_shaders, camera_position, model, view, projection);
+			}
+
+			{
+				glm::mat4 model = glm::mat4(1.0f);
+				model = glm::translate(model, glm::vec3(-0.5f, 0.0f, 0.0f));
+				draw_model(test_model2, depth_shaders, camera_position, model, view, projection);
+			}
+
+			{
+				glm::mat4 model = glm::mat4(1.0f);
+				model = glm::translate(model, glm::vec3(-30.0f, -1.0f, -30.0f));
+				draw_model(terrain_model, depth_shaders, camera_position, model, view, projection);
+			}
 		}
 
+		if(true)
+		{
+			glm::mat4 model = glm::mat4(1.0f);
+			model = glm::translate(model, glm::vec3(0.0f, 0.0f, 0.0f));
+			model = glm::scale(model, glm::vec3(0.01f, 0.01f, 0.01f));
+			draw_model(sponza_model, depth_shaders, camera_position, model, view, projection);
+		}
+
+		glBindFramebuffer(GL_FRAMEBUFFER, 0);
+		glDisable(GL_DEPTH_TEST);
+		glClearColor(1.0f, 1.0f, 1.0f, 1.0f);
+		glClear(GL_COLOR_BUFFER_BIT);
+
+		framebuffer_screen_shaders.Use();
+
+		framebuffer_screen_shaders.SetInt("color_texture", 0);
+		framebuffer_screen_shaders.SetInt("depth_texture", 1);
+		framebuffer_screen_shaders.SetVec3("sky_color", clear_color);
+		framebuffer_screen_shaders.SetFloat("fog_intensity", fog_intensity);
+
+		glActiveTexture(GL_TEXTURE0);
+		glBindTexture(GL_TEXTURE_2D, texture_color_framebuffer);
+
+		glActiveTexture(GL_TEXTURE1);
+		glBindTexture(GL_TEXTURE_2D, texture_depth_framebuffer);
+
+		glBindVertexArray(quadVAO);
+		glDrawArrays(GL_TRIANGLES, 0, 6);
+
+		/*
 		glEnable(GL_BLEND);
 		glBlendEquation(GL_FUNC_ADD);
 		glBlendFunc(GL_ONE, GL_ONE);
 		glDepthFunc(GL_EQUAL);
-
+		
 		// point lights
 		{
 			point_lit_object_shaders.Use();
@@ -285,18 +447,30 @@ int main() {
 			glDepthFunc(GL_EQUAL);
 		}
 
+		point_lit_object_shaders.Use();
+
 		{
+			point_lit_object_shaders.SetFloat("tiling", 1.0f);
 			glm::mat4 model = glm::mat4(1.0f);
 			model = glm::translate(model, glm::vec3(0.5f, 0.0f, 0.0f));
 			draw_model(test_model1, point_lit_object_shaders, camera_position, model, view, projection);
 		}
 
 		{
+			point_lit_object_shaders.SetFloat("tiling", 1.0f);
 			glm::mat4 model = glm::mat4(1.0f);
 			model = glm::translate(model, glm::vec3(-0.5f, 0.0f, 0.0f));
 			draw_model(test_model2, point_lit_object_shaders, camera_position, model, view, projection);
 		}
 
+		{
+			point_lit_object_shaders.SetFloat("tiling", 40.0f);
+			glm::mat4 model = glm::mat4(1.0f);
+			model = glm::translate(model, glm::vec3(-30.0f, -1.0f, -30.0f));
+			draw_model(terrain_model, point_lit_object_shaders, camera_position, model, view, projection);
+		}
+		
+		
 		// point lights
 		{
 			point_lit_object_shaders.Use();
@@ -325,18 +499,29 @@ int main() {
 			glDepthFunc(GL_EQUAL);
 		}
 
+		point_lit_object_shaders.Use();
+
 		{
+			point_lit_object_shaders.SetFloat("tiling", 1.0f);
 			glm::mat4 model = glm::mat4(1.0f);
 			model = glm::translate(model, glm::vec3(0.5f, 0.0f, 0.0f));
 			draw_model(test_model1, point_lit_object_shaders, camera_position, model, view, projection);
 		}
 
 		{
+			point_lit_object_shaders.SetFloat("tiling", 1.0f);
 			glm::mat4 model = glm::mat4(1.0f);
 			model = glm::translate(model, glm::vec3(-0.5f, 0.0f, 0.0f));
 			draw_model(test_model2, point_lit_object_shaders, camera_position, model, view, projection);
 		}
 
+		{
+			point_lit_object_shaders.SetFloat("tiling", 40.0f);
+			glm::mat4 model = glm::mat4(1.0f);
+			model = glm::translate(model, glm::vec3(-30.0f, -1.0f, -30.0f));
+			draw_model(terrain_model, point_lit_object_shaders, camera_position, model, view, projection);
+		}*/
+		
 		if (show_debug_menu) {
 			render_debug_menu();
 		}
@@ -466,6 +651,10 @@ void render_debug_menu() {
 		ImGui::Separator();
 
 		ImGui::ColorEdit3("Clear Color", (float*)&clear_color);
+
+		ImGui::Separator();
+
+		ImGui::DragFloat("Fog Intensity", &fog_intensity, 0.1f, 0.0f, 40.0f);
 
 		ImGui::Separator();
 

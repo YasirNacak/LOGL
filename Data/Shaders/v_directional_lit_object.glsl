@@ -10,6 +10,7 @@ out vec3 vertex_world_position;
 uniform mat4 model;
 uniform mat4 view;
 uniform mat4 projection;
+uniform float tiling;
 
 void main() {
 	vertex_normal = mat3(transpose(inverse(model))) * normalize(in_normal);
@@ -18,7 +19,7 @@ void main() {
 	vec4 world_position = model * pos_vec4;
 	vertex_world_position = vec3(world_position);
 
-	texture_coords = in_tex_coords;
+	texture_coords = in_tex_coords * tiling;
 
 	gl_Position = projection * view * world_position;
 }
