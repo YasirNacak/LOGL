@@ -1,5 +1,15 @@
 #include "Texture.h"
 
+Texture::Texture()
+{
+	Id = 0;
+	Type = "";
+	Path = "";
+}
+
+Texture::Texture(unsigned int id, std::string type, std::string path) : Id(id), Type(type), Path(path){
+}
+
 unsigned int Texture::Load(std::string path) {
 	unsigned int texture_id;
 	glGenTextures(1, &texture_id);

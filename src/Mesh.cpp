@@ -19,11 +19,14 @@ void Mesh::Draw(Shader shader) {
 
         if (type == "diffuse") {
             number = std::to_string(diffuse_index++);
-            shader.SetFloat(("material.texture_diffuse" + number).c_str(), i);
+            shader.SetInt(("texture_diffuse" + number).c_str(), i);
         }
         else if (type == "specular") {
             number = std::to_string(specular_index++);
-            shader.SetFloat(("material.texture_specular" + number).c_str(), i);
+            shader.SetInt(("texture_specular" + number).c_str(), i);
+        }
+        else if (type == "splat") {
+            shader.SetInt("texture_splatmap", i);
         }
 
         glBindTexture(GL_TEXTURE_2D, Textures[i].Id);

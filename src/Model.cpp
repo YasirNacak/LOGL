@@ -1,5 +1,8 @@
 #include "Model.h"
 
+Model::Model() {
+}
+
 Model::Model(std::vector<Mesh> meshes) {
 	this->_meshes = meshes;
 }
@@ -49,10 +52,12 @@ Mesh Model::ProcessMesh(aiMesh* mesh, const aiScene* scene) {
 		position.z = mesh->mVertices[i].z;
 		vertex.Position = position;
 
-		glm::vec3 normal;
-		normal.x = mesh->mNormals[i].x;
-		normal.y = mesh->mNormals[i].y;
-		normal.z = mesh->mNormals[i].z;
+		glm::vec3 normal = glm::vec3(0.0f);
+		if (mesh->mNormals != NULL) {
+			normal.x = mesh->mNormals[i].x;
+			normal.y = mesh->mNormals[i].y;
+			normal.z = mesh->mNormals[i].z;
+		}
 		vertex.Normal = normal;
 
 		if (mesh->mTextureCoords[0])

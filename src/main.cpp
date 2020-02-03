@@ -5,6 +5,8 @@
 #include <glm/gtc/type_ptr.hpp>
 
 #include <iostream>
+#include <cstdlib>
+#include <ctime>
 
 #include "Shader.h"
 #include "Model.h"
@@ -14,9 +16,11 @@
 #include <imgui/imgui_impl_glfw.h>
 #include <imgui/imgui_impl_opengl3.h>
 
-void draw_model(Model model, Shader shader, glm::vec3 camera_position, glm::mat4 m_model, glm::mat4 m_view, glm::mat4 m_projection);
+extern "C" {
+	_declspec(dllexport) unsigned long NvOptimusEnablement = 0x00000001;
+}
 
-unsigned int load_cubemap(std::vector<std::string> faces);
+void draw_model(Model model, Shader shader, glm::vec3 camera_position, glm::mat4 m_model, glm::mat4 m_view, glm::mat4 m_projection);
 
 void framebuffer_size_callback(GLFWwindow* window, int width, int height);
 
@@ -48,7 +52,8 @@ float last_frame_time = 0.0f;
 int window_width = 1280;
 int window_height = 720;
 bool is_window_fullscreen = false;
-glm::vec3 clear_color = glm::vec3(65.0f / 255.0f, 103.0f / 255.0f, 115.0f / 255.0f);
+//glm::vec3 clear_color = glm::vec3(194.0f / 255.0f, 224.0f / 255.0f, 1.0f);
+glm::vec3 clear_color = glm::vec3(0.0f, 0.0f, 0.0f);
 
 //int window_width = 1920;
 //int window_height = 1080;
@@ -63,42 +68,27 @@ float mouse_sensitivity = 0.05f;
 bool show_debug_menu = false;
 
 // object data
-
-// point light positions
-#define POINT_LIGHT_COUNT 3
-glm::vec3 point_light_positions[] = {
-	glm::vec3(0.0f, 0.0f, 1.0f),
-	glm::vec3(-1.0f, 0.0f, 1.0f),
-	glm::vec3(0.0f, 1.0f, 1.0f),
-};
-
-// point light colors
-glm::vec3 point_light_colors[] = {
-	glm::vec3(1.0f, 0.0f, 0.0f),
-	glm::vec3(0.0f, 1.0f, 0.0f),
-	glm::vec3(0.0f, 0.0f, 1.0f),
-};
-
-glm::vec3 point_light_position = glm::vec3(-0.5f, 0.0f, 1.0f);
-glm::vec3 point_light_color = glm::vec3(1.0f, 1.0f, 1.0f);
-
-glm::vec3 point_light2_position = glm::vec3(0.5f, 0.0f, 1.0f);
-glm::vec3 point_light2_color = glm::vec3(1.0f, 1.0f, 1.0f);
+std::vector<glm::vec3> objectPositions;
 
 // ambient light variables
-glm::vec3 directional_light_direction = glm::vec3(-0.2f, -1.0f, -0.3f);
-glm::vec3 directional_light_ambient = clear_color;
+glm::vec3 directional_light_direction = glm::vec3(1.0f, -1.0f, 0.0f);
+glm::vec3 directional_light_ambient = glm::vec3(141.0f / 255.0f, 161.0f / 255.0f, 190.0f / 255.0f);
 glm::vec3 directional_light_diffuse = glm::vec3(0.4f, 0.4f, 0.4f);
 glm::vec3 directional_light_specular = glm::vec3(0.5f, 0.5f, 0.5f);
 
-// post processing variables
-float fog_intensity = 0.1f;
+// fog variables
+float fog_intensity = 0.8f;
+
+// sky variables
+float red_factor = 0.18;
+float green_factor = 0.27;
+float blue_factor = 0.47;
 
 // debug variable
-bool is_render_doc = false;
+bool is_renderdoc = false;
 
 int main() {
-	if (is_render_doc) {
+	if (is_renderdoc) {
 		std::cout << "press any key to start" << std::endl;
 		std::cin.get();
 	}
@@ -142,222 +132,119 @@ int main() {
 	glfwSetCursorPosCallback(window, mouse_position_callback);
 	glfwSetCursorPos(window, mouse_last_x, mouse_last_y);
 
-	Shader point_lit_object_shaders{ "Data/Shaders/v_point_lit_object.glsl", "Data/Shaders/f_point_lit_object.glsl" };
-	Shader directional_lit_object_shaders{ "Data/Shaders/v_directional_lit_object.glsl", "Data/Shaders/f_directional_lit_object.glsl" };
-	Shader light_source_shaders{ "Data/Shaders/v_light_source.glsl", "Data/Shaders/f_light_source.glsl" };
-	Shader framebuffer_screen_shaders{ "Data/Shaders/v_framebuffer_screen.glsl", "Data/Shaders/f_framebuffer_screen.glsl" };
-	Shader depth_shaders{ "Data/Shaders/v_depth.glsl", "Data/Shaders/f_depth.glsl" };
-	Shader skybox_shaders{ "Data/Shaders/v_skybox.glsl", "Data/Shaders/f_skybox.glsl" };
+	Shader g_pass_shaders{ "Data/Shaders/v_g_pass.glsl", "Data/Shaders/f_g_pass.glsl" };
+	Shader g_pass_terrain_shaders{ "Data/Shaders/v_g_pass_terrain.glsl", "Data/Shaders/f_g_pass_terrain.glsl" };
+	Shader g_pass_single_texture_terrain_shaders{ "Data/Shaders/v_g_pass_single_texture_terrain.glsl", "Data/Shaders/f_g_pass_single_texture_terrain.glsl" };
+	Shader deferred_shaders{ "Data/Shaders/v_deferred_render.glsl", "Data/Shaders/f_deferred_render.glsl" };
+	Shader sky_shaders = { "Data/Shaders/Sky/v_sky.glsl", "Data/Shaders/Sky/f_sky.glsl" };
 
 	// Set callback function for window / frame size change so the viewport gets resized
 	glfwSetFramebufferSizeCallback(window, framebuffer_size_callback);
-
-	// Create array of vertices and assign it to an array buffer
-	float cube_vertices[] = {
-		-0.5f, -0.5f, -0.5f,
-		 0.5f, -0.5f, -0.5f,
-		 0.5f,  0.5f, -0.5f,
-		 0.5f,  0.5f, -0.5f,
-		-0.5f,  0.5f, -0.5f,
-		-0.5f, -0.5f, -0.5f,
-
-		-0.5f, -0.5f,  0.5f,
-		 0.5f, -0.5f,  0.5f,
-		 0.5f,  0.5f,  0.5f,
-		 0.5f,  0.5f,  0.5f,
-		-0.5f,  0.5f,  0.5f,
-		-0.5f, -0.5f,  0.5f,
-
-		-0.5f,  0.5f,  0.5f,
-		-0.5f,  0.5f, -0.5f,
-		-0.5f, -0.5f, -0.5f,
-		-0.5f, -0.5f, -0.5f,
-		-0.5f, -0.5f,  0.5f,
-		-0.5f,  0.5f,  0.5f,
-
-		 0.5f,  0.5f,  0.5f,
-		 0.5f,  0.5f, -0.5f,
-		 0.5f, -0.5f, -0.5f,
-		 0.5f, -0.5f, -0.5f,
-		 0.5f, -0.5f,  0.5f,
-		 0.5f,  0.5f,  0.5f,
-
-		-0.5f, -0.5f, -0.5f,
-		 0.5f, -0.5f, -0.5f,
-		 0.5f, -0.5f,  0.5f,
-		 0.5f, -0.5f,  0.5f,
-		-0.5f, -0.5f,  0.5f,
-		-0.5f, -0.5f, -0.5f,
-
-		-0.5f,  0.5f, -0.5f,
-		 0.5f,  0.5f, -0.5f,
-		 0.5f,  0.5f,  0.5f,
-		 0.5f,  0.5f,  0.5f,
-		-0.5f,  0.5f,  0.5f,
-		-0.5f,  0.5f, -0.5f,
-	};
-
-	float skybox_vertices[] = {
-		// positions          
-		-1.0f,  1.0f, -1.0f,
-		-1.0f, -1.0f, -1.0f,
-		 1.0f, -1.0f, -1.0f,
-		 1.0f, -1.0f, -1.0f,
-		 1.0f,  1.0f, -1.0f,
-		-1.0f,  1.0f, -1.0f,
-
-		-1.0f, -1.0f,  1.0f,
-		-1.0f, -1.0f, -1.0f,
-		-1.0f,  1.0f, -1.0f,
-		-1.0f,  1.0f, -1.0f,
-		-1.0f,  1.0f,  1.0f,
-		-1.0f, -1.0f,  1.0f,
-
-		 1.0f, -1.0f, -1.0f,
-		 1.0f, -1.0f,  1.0f,
-		 1.0f,  1.0f,  1.0f,
-		 1.0f,  1.0f,  1.0f,
-		 1.0f,  1.0f, -1.0f,
-		 1.0f, -1.0f, -1.0f,
-
-		-1.0f, -1.0f,  1.0f,
-		-1.0f,  1.0f,  1.0f,
-		 1.0f,  1.0f,  1.0f,
-		 1.0f,  1.0f,  1.0f,
-		 1.0f, -1.0f,  1.0f,
-		-1.0f, -1.0f,  1.0f,
-
-		-1.0f,  1.0f, -1.0f,
-		 1.0f,  1.0f, -1.0f,
-		 1.0f,  1.0f,  1.0f,
-		 1.0f,  1.0f,  1.0f,
-		-1.0f,  1.0f,  1.0f,
-		-1.0f,  1.0f, -1.0f,
-
-		-1.0f, -1.0f, -1.0f,
-		-1.0f, -1.0f,  1.0f,
-		 1.0f, -1.0f, -1.0f,
-		 1.0f, -1.0f, -1.0f,
-		-1.0f, -1.0f,  1.0f,
-		 1.0f, -1.0f,  1.0f
-	};
-
-	float quad_vertices[] = {
-		-1.0f,  1.0f,  0.0f, 1.0f,
-		-1.0f, -1.0f,  0.0f, 0.0f,
-		 1.0f, -1.0f,  1.0f, 0.0f,
-
-		-1.0f,  1.0f,  0.0f, 1.0f,
-		 1.0f, -1.0f,  1.0f, 0.0f,
-		 1.0f,  1.0f,  1.0f, 1.0f
-	};
-
-	// screen quad VAO
-	unsigned int quad_vao, quad_vbo;
-	glGenVertexArrays(1, &quad_vao);
-	glGenBuffers(1, &quad_vbo);
-	glBindVertexArray(quad_vao);
-	glBindBuffer(GL_ARRAY_BUFFER, quad_vbo);
-	glBufferData(GL_ARRAY_BUFFER, sizeof(quad_vertices), &quad_vertices, GL_STATIC_DRAW);
-	glEnableVertexAttribArray(0);
-	glVertexAttribPointer(0, 2, GL_FLOAT, GL_FALSE, 4 * sizeof(float), (void*)0);
-	glEnableVertexAttribArray(1);
-	glVertexAttribPointer(1, 2, GL_FLOAT, GL_FALSE, 4 * sizeof(float), (void*)(2 * sizeof(float)));
-
-	// skybox VAO
-	unsigned int skybox_vao, skybox_vbo;
-	glGenVertexArrays(1, &skybox_vao);
-	glGenBuffers(1, &skybox_vbo);
-	glBindVertexArray(skybox_vao);
-	glBindBuffer(GL_ARRAY_BUFFER, skybox_vbo);
-	glBufferData(GL_ARRAY_BUFFER, sizeof(skybox_vertices), &skybox_vertices, GL_STATIC_DRAW);
-	glEnableVertexAttribArray(0);
-	glVertexAttribPointer(0, 3, GL_FLOAT, GL_FALSE, 3 * sizeof(float), (void*)0);
-
-	std::vector<std::string> skybox_faces {
-		"Data/Textures/skybox_cloudtop/cloudtop_rt.jpg",
-		"Data/Textures/skybox_cloudtop/cloudtop_lf.jpg",
-		"Data/Textures/skybox_cloudtop/cloudtop_up.jpg",
-		"Data/Textures/skybox_cloudtop/cloudtop_dn.jpg",
-		"Data/Textures/skybox_cloudtop/cloudtop_ft.jpg",
-		"Data/Textures/skybox_cloudtop/cloudtop_bk.jpg"
-	};
-
-	unsigned int cubemap_texture = load_cubemap(skybox_faces);
-
-	skybox_shaders.Use();
-	skybox_shaders.SetInt("skybox", 0);
-
-	// light
-	unsigned int light_vao;
-	glGenVertexArrays(1, &light_vao);
-
-	unsigned int light_vbo;
-	glGenBuffers(1, &light_vbo);
-
-	glBindVertexArray(light_vao);
-	glBindBuffer(GL_ARRAY_BUFFER, light_vbo);
-	glBufferData(GL_ARRAY_BUFFER, sizeof(cube_vertices), cube_vertices, GL_STATIC_DRAW);
-
-	glVertexAttribPointer(0, 3, GL_FLOAT, GL_FALSE, 3 * sizeof(float), (void*)0);
-	glEnableVertexAttribArray(0);
-
-	Model test_model1("Data/Models/Evelynn/evelynn.obj");
-	Model test_model2("Data/Models/Voidwalker/voidwalker.obj");
 	
-	Model sponza_model("Data/Models/Sponza/sponza.obj", false);
+	Model evelynn_model("Data/Models/Evelynn/evelynn.obj");
+	Model sivir_model("Data/Models/Sivir/sivir.obj");
+	Model janna_model("Data/Models/Janna/janna.obj");
+	Model house_model("Data/Models/House/house.obj");
+	Model skydome_model("Data/Models/Dome/dome2.obj");
 
-	Model terrain_model = Terrain::Generate("Data/Textures/grass.jpg");
+	Terrain main_terrain(100,
+		"Data/Textures/levels/heightmap2.png", 
+		"Data/Textures/levels/heightmap2_splatmap.png", 
+		"Data/Textures/terrain/sand.jpg", 
+		"Data/Textures/terrain/grass.jpg", 
+		"Data/Textures/terrain/rock.jpg");
+	Model terrain_model = main_terrain.GetModel();
 
-	// framebuffer configuration
-	// -------------------------
-	unsigned int color_framebuffer;
-	glGenFramebuffers(1, &color_framebuffer);
-	glBindFramebuffer(GL_FRAMEBUFFER, color_framebuffer);
-	// create a color attachment texture
-	unsigned int texture_color_framebuffer;
-	glGenTextures(1, &texture_color_framebuffer);
-	glBindTexture(GL_TEXTURE_2D, texture_color_framebuffer);
-	glTexImage2D(GL_TEXTURE_2D, 0, GL_RGB, window_width, window_height, 0, GL_RGB, GL_UNSIGNED_BYTE, NULL);
-	glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
-	glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
-	glFramebufferTexture2D(GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT0, GL_TEXTURE_2D, texture_color_framebuffer, 0);
-	// create a renderbuffer object for depth and stencil attachment (we won't be sampling these)
-	unsigned int rbo_color;
-	glGenRenderbuffers(1, &rbo_color);
-	glBindRenderbuffer(GL_RENDERBUFFER, rbo_color);
-	glRenderbufferStorage(GL_RENDERBUFFER, GL_DEPTH24_STENCIL8, window_width, window_height); // use a single renderbuffer object for both a depth AND stencil buffer.
-	glFramebufferRenderbuffer(GL_FRAMEBUFFER, GL_DEPTH_STENCIL_ATTACHMENT, GL_RENDERBUFFER, rbo_color); // now actually attach it
-	// now that we actually created the framebuffer and added all attachments we want to check if it is actually complete now
+	/*Terrain grand_canyon_terrain(100,
+		"Data/Textures/levels/gcanyon_heightmap.png",
+		"Data/Textures/levels/gcanyon_texturemap.png");
+	Model terrain_model = grand_canyon_terrain.GetModel();*/
+
+	objectPositions.push_back(glm::vec3(-3.0, 10, -6.0));
+
+	unsigned int gBuffer;
+	glGenFramebuffers(1, &gBuffer);
+	glBindFramebuffer(GL_FRAMEBUFFER, gBuffer);
+	unsigned int gPosition, gNormal, gAlbedoSpec, gDepth;
+
+	// - position color buffer
+	glGenTextures(1, &gPosition);
+	glBindTexture(GL_TEXTURE_2D, gPosition);
+	glTexImage2D(GL_TEXTURE_2D, 0, GL_RGB16F, window_width, window_height, 0, GL_RGB, GL_FLOAT, NULL);
+	glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_NEAREST);
+	glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_NEAREST);
+	glFramebufferTexture2D(GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT0, GL_TEXTURE_2D, gPosition, 0);
+
+	// - normal color buffer
+	glGenTextures(1, &gNormal);
+	glBindTexture(GL_TEXTURE_2D, gNormal);
+	glTexImage2D(GL_TEXTURE_2D, 0, GL_RGB16F, window_width, window_height, 0, GL_RGB, GL_FLOAT, NULL);
+	glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_NEAREST);
+	glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_NEAREST);
+	glFramebufferTexture2D(GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT1, GL_TEXTURE_2D, gNormal, 0);
+
+	// - color + specular color buffer
+	glGenTextures(1, &gAlbedoSpec);
+	glBindTexture(GL_TEXTURE_2D, gAlbedoSpec);
+	glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA, window_width, window_height, 0, GL_RGBA, GL_UNSIGNED_BYTE, NULL);
+	glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_NEAREST);
+	glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_NEAREST);
+	glFramebufferTexture2D(GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT2, GL_TEXTURE_2D, gAlbedoSpec, 0);
+
+	// - color + specular color buffer
+	glGenTextures(1, &gDepth);
+	glBindTexture(GL_TEXTURE_2D, gDepth);
+	glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA, window_width, window_height, 0, GL_RGBA, GL_UNSIGNED_BYTE, NULL);
+	glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_NEAREST);
+	glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_NEAREST);
+	glFramebufferTexture2D(GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT3, GL_TEXTURE_2D, gDepth, 0);
+
+	// - tell OpenGL which color attachments we'll use (of this framebuffer) for rendering 
+	unsigned int attachments[4] = { GL_COLOR_ATTACHMENT0, GL_COLOR_ATTACHMENT1, GL_COLOR_ATTACHMENT2, GL_COLOR_ATTACHMENT3 };
+	glDrawBuffers(4, attachments);
+
+	// create and attach depth buffer (renderbuffer)
+	unsigned int rboDepth;
+	glGenRenderbuffers(1, &rboDepth);
+	glBindRenderbuffer(GL_RENDERBUFFER, rboDepth);
+	glRenderbufferStorage(GL_RENDERBUFFER, GL_DEPTH_COMPONENT, window_width, window_height);
+	glFramebufferRenderbuffer(GL_FRAMEBUFFER, GL_DEPTH_ATTACHMENT, GL_RENDERBUFFER, rboDepth);
+	// finally check if framebuffer is complete
 	if (glCheckFramebufferStatus(GL_FRAMEBUFFER) != GL_FRAMEBUFFER_COMPLETE) {
-		std::cout << "ERROR::FRAMEBUFFER:: Framebuffer is not complete!" << std::endl;
+		std::cout << "Framebuffer not complete!" << std::endl;
 	}
 	glBindFramebuffer(GL_FRAMEBUFFER, 0);
+	
+	srand(time(NULL));
 
-	// framebuffer configuration
-	// -------------------------
-	unsigned int depth_framebuffer;
-	glGenFramebuffers(1, &depth_framebuffer);
-	glBindFramebuffer(GL_FRAMEBUFFER, depth_framebuffer);
-	// create a color attachment texture
-	unsigned int texture_depth_framebuffer;
-	glGenTextures(1, &texture_depth_framebuffer);
-	glBindTexture(GL_TEXTURE_2D, texture_depth_framebuffer);
-	glTexImage2D(GL_TEXTURE_2D, 0, GL_RGB, window_width, window_height, 0, GL_RGB, GL_UNSIGNED_BYTE, NULL);
-	glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
-	glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
-	glFramebufferTexture2D(GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT0, GL_TEXTURE_2D, texture_depth_framebuffer, 0);
-	// create a renderbuffer object for depth and stencil attachment (we won't be sampling these)
-	unsigned int rbo_depth;
-	glGenRenderbuffers(1, &rbo_depth);
-	glBindRenderbuffer(GL_RENDERBUFFER, rbo_depth);
-	glRenderbufferStorage(GL_RENDERBUFFER, GL_DEPTH_COMPONENT24, window_width, window_height); // use a single renderbuffer object for both a depth AND stencil buffer.
-	glFramebufferRenderbuffer(GL_FRAMEBUFFER, GL_DEPTH_ATTACHMENT, GL_RENDERBUFFER, rbo_depth); // now actually attach it
-	// now that we actually created the framebuffer and added all attachments we want to check if it is actually complete now
-	if (glCheckFramebufferStatus(GL_FRAMEBUFFER) != GL_FRAMEBUFFER_COMPLETE) {
-		std::cout << "ERROR::FRAMEBUFFER:: Framebuffer is not complete!" << std::endl;
+	// lighting info
+	const unsigned int NR_LIGHTS = 32;
+	std::vector<glm::vec3> lightPositions;
+	std::vector<glm::vec3> lightColors;
+	for (unsigned int i = 0; i < NR_LIGHTS; i++) {
+		// calculate slightly random offsets
+		float xPos = ((rand() % 100) / 100.0) * 6.0 - 3.0;
+		float yPos = ((rand() % 100) / 100.0) * 6.0 - 4.0;
+		float zPos = ((rand() % 100) / 100.0) * 6.0 - 6.0;
+		lightPositions.push_back(glm::vec3(xPos, yPos, zPos));
+		// also calculate random color
+		float rColor = ((rand() % 100) / 255.0f) + 0.5f; // between 0.5 and 1.0
+		float gColor = 0.0f;
+		//float gColor = ((rand() % 100) / 255.0f) + 0.5f; // between 0.5 and 1.0
+		float bColor = ((rand() % 100) / 255.0f) + 0.3f; // between 0.5 and 1.0
+		//float bColor = 0.0f;
+		lightColors.push_back(glm::vec3(rColor, gColor, bColor));
 	}
-	glBindFramebuffer(GL_FRAMEBUFFER, 0);
+
+	deferred_shaders.Use();
+
+	deferred_shaders.SetInt("gPosition", 0);
+	deferred_shaders.SetInt("gNormal", 1);
+	deferred_shaders.SetInt("gAlbedoSpec", 2);
+	deferred_shaders.SetInt("gDepth", 3);
+	
+	unsigned int quad_vao = 0;
+	unsigned int quad_vbo;
 
 	// Draw loop
 	while (!glfwWindowShouldClose(window)) {
@@ -373,8 +260,6 @@ int main() {
 			glPolygonMode(GL_FRONT_AND_BACK, GL_FILL);
 		}
 
-		glBindFramebuffer(GL_FRAMEBUFFER, color_framebuffer);
-		glEnable(GL_DEPTH_TEST);
 		glClearColor(clear_color.r, clear_color.g, clear_color.b, 1.0f);
 		glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
 
@@ -382,233 +267,125 @@ int main() {
 		view = glm::lookAt(camera_position, camera_position + camera_front, camera_up);
 
 		glm::mat4 projection = glm::mat4(1.0f);
-		projection = glm::perspective(glm::radians(45.0f), (float)window_width / (float)window_height, 0.1f, 100.0f);
-		
-		/*glDepthFunc(GL_LESS);
-		glDisable(GL_BLEND);*/
+		projection = glm::perspective(glm::radians(45.0f), (float)window_width / (float)window_height, 0.1f, 500.0f);
 
-		// directional light
-		{
-			directional_lit_object_shaders.Use();
-			directional_lit_object_shaders.SetVec3("directional_light.direction", directional_light_direction);
-			directional_lit_object_shaders.SetVec3("directional_light.ambient", directional_light_ambient);
-			directional_lit_object_shaders.SetVec3("directional_light.diffuse", directional_light_diffuse);
-			directional_lit_object_shaders.SetVec3("directional_light.specular", directional_light_specular);
-		}
-
-		if (true) {
-			{
-				directional_lit_object_shaders.SetFloat("tiling", 1.0f);
-				glm::mat4 model = glm::mat4(1.0f);
-				model = glm::translate(model, glm::vec3(0.5f, 0.0f, 0.0f));
-				draw_model(test_model1, directional_lit_object_shaders, camera_position, model, view, projection);
-			}
-
-			{
-				directional_lit_object_shaders.SetFloat("tiling", 1.0f);
-				glm::mat4 model = glm::mat4(1.0f);
-				model = glm::translate(model, glm::vec3(-0.5f, 0.0f, 0.0f));
-				draw_model(test_model2, directional_lit_object_shaders, camera_position, model, view, projection);
-			}
-
-			{
-				directional_lit_object_shaders.SetFloat("tiling", 40.0f);
-				glm::mat4 model = glm::mat4(1.0f);
-				model = glm::translate(model, glm::vec3(-30.0f, -1.0f, -30.0f));
-				draw_model(terrain_model, directional_lit_object_shaders, camera_position, model, view, projection);
-			}
-		}
-		
-		if(false)
-		{
-			directional_lit_object_shaders.SetFloat("tiling", 1.0f);
-			glm::mat4 model = glm::mat4(1.0f);
-			model = glm::translate(model, glm::vec3(0.0f, 0.0f, 0.0f));
-			model = glm::scale(model, glm::vec3(0.01f, 0.01f, 0.01f));
-			draw_model(sponza_model, directional_lit_object_shaders, camera_position, model, view, projection);
-		}
-
-		// draw skybox as last
-		glDepthFunc(GL_LEQUAL);  // change depth function so depth test passes when values are equal to depth buffer's content
-		skybox_shaders.Use();
-		glm::mat4 skybox_view = glm::mat4(glm::mat3(view));
-		skybox_shaders.SetMatrix4("view", skybox_view);
-		skybox_shaders.SetMatrix4("projection", projection);
-		// skybox cube
-		glBindVertexArray(skybox_vao);
-		glActiveTexture(GL_TEXTURE0);
-		glBindTexture(GL_TEXTURE_CUBE_MAP, cubemap_texture);
-		glDrawArrays(GL_TRIANGLES, 0, 36);
-		glBindVertexArray(0);
-		glDepthFunc(GL_LESS);
-
-		
-		// render depth to texture
-		glBindFramebuffer(GL_FRAMEBUFFER, depth_framebuffer);
-		glEnable(GL_DEPTH_TEST);
-		glClearColor(clear_color.r, clear_color.g, clear_color.b, 1.0f);
+		glBindFramebuffer(GL_FRAMEBUFFER, gBuffer);
 		glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
+		glm::mat4 model = glm::mat4(1.0f);
+		g_pass_shaders.Use();
+		g_pass_shaders.SetMatrix4("projection", projection);
+		g_pass_shaders.SetMatrix4("view", view);
 
-		depth_shaders.Use();
-		
-		if (true) {
-			{
-				glm::mat4 model = glm::mat4(1.0f);
-				model = glm::translate(model, glm::vec3(0.5f, 0.0f, 0.0f));
-				draw_model(test_model1, depth_shaders, camera_position, model, view, projection);
-			}
+		g_pass_shaders.SetInt("tiling", 1);
 
-			{
-				glm::mat4 model = glm::mat4(1.0f);
-				model = glm::translate(model, glm::vec3(-0.5f, 0.0f, 0.0f));
-				draw_model(test_model2, depth_shaders, camera_position, model, view, projection);
-			}
-
-			{
-				glm::mat4 model = glm::mat4(1.0f);
-				model = glm::translate(model, glm::vec3(-30.0f, -1.0f, -30.0f));
-				draw_model(terrain_model, depth_shaders, camera_position, model, view, projection);
-			}
+		for (unsigned int i = 0; i < objectPositions.size(); i++) {
+			model = glm::mat4(1.0f);
+			model = glm::translate(model, objectPositions[i]);
+			g_pass_shaders.SetMatrix4("model", model);
+			janna_model.Draw(g_pass_shaders);
 		}
 
-		if(false)
+		// draw terrain
+		g_pass_terrain_shaders.Use();
+		g_pass_terrain_shaders.SetMatrix4("projection", projection);
+		g_pass_terrain_shaders.SetMatrix4("view", view);
+		g_pass_terrain_shaders.SetInt("tiling", main_terrain.GetSize() / 2.0f);
 		{
-			glm::mat4 model = glm::mat4(1.0f);
-			model = glm::translate(model, glm::vec3(0.0f, 0.0f, 0.0f));
-			model = glm::scale(model, glm::vec3(0.01f, 0.01f, 0.01f));
-			draw_model(sponza_model, depth_shaders, camera_position, model, view, projection);
+			model = glm::mat4(1.0f);
+			model = glm::translate(model, glm::vec3(-main_terrain.GetSize() / 2.0f, -0.55f, -main_terrain.GetSize() / 2.0f));
+			g_pass_terrain_shaders.SetMatrix4("model", model);
+			terrain_model.Draw(g_pass_terrain_shaders);
 		}
+
+		/*g_pass_single_texture_terrain_shaders.Use();
+		g_pass_single_texture_terrain_shaders.SetMatrix4("projection", projection);
+		g_pass_single_texture_terrain_shaders.SetMatrix4("view", view);
+		{
+			model = glm::mat4(1.0f);
+			model = glm::translate(model, glm::vec3(-grand_canyon_terrain.GetSize() / 2.0f, -0.55f, -grand_canyon_terrain.GetSize() / 2.0f));
+			g_pass_single_texture_terrain_shaders.SetMatrix4("model", model);
+			terrain_model.Draw(g_pass_single_texture_terrain_shaders);
+		}*/
 
 		glBindFramebuffer(GL_FRAMEBUFFER, 0);
-		glDisable(GL_DEPTH_TEST);
-		glClearColor(1.0f, 1.0f, 1.0f, 1.0f);
-		glClear(GL_COLOR_BUFFER_BIT);
 
-		framebuffer_screen_shaders.Use();
+		glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
 
-		framebuffer_screen_shaders.SetInt("color_texture", 0);
-		framebuffer_screen_shaders.SetInt("depth_texture", 1);
-		framebuffer_screen_shaders.SetVec3("sky_color", clear_color);
-		framebuffer_screen_shaders.SetFloat("fog_intensity", fog_intensity);
+		deferred_shaders.Use();
 
 		glActiveTexture(GL_TEXTURE0);
-		glBindTexture(GL_TEXTURE_2D, texture_color_framebuffer);
-
+		glBindTexture(GL_TEXTURE_2D, gPosition);
 		glActiveTexture(GL_TEXTURE1);
-		glBindTexture(GL_TEXTURE_2D, texture_depth_framebuffer);
+		glBindTexture(GL_TEXTURE_2D, gNormal);
+		glActiveTexture(GL_TEXTURE2);
+		glBindTexture(GL_TEXTURE_2D, gAlbedoSpec);
+		glActiveTexture(GL_TEXTURE3);
+		glBindTexture(GL_TEXTURE_2D, gDepth);
+
+		deferred_shaders.SetVec3("fog_color", clear_color);
+		deferred_shaders.SetFloat("fog_intensity", fog_intensity);
+
+		/*for (unsigned int i = 0; i < lightPositions.size(); i++) {
+			deferred_shaders.SetVec3("lights[" + std::to_string(i) + "].Position", lightPositions[i]);
+			deferred_shaders.SetVec3("lights[" + std::to_string(i) + "].Color", lightColors[i]);
+			const float constant = 1.0;
+			const float linear = 0.7;
+			const float quadratic = 1.8;
+			deferred_shaders.SetFloat("lights[" + std::to_string(i) + "].Linear", linear);
+			deferred_shaders.SetFloat("lights[" + std::to_string(i) + "].Quadratic", quadratic);
+			const float maxBrightness = std::fmaxf(std::fmaxf(lightColors[i].r, lightColors[i].g), lightColors[i].b);
+			float radius = (-linear + std::sqrt(linear * linear - 4 * quadratic * (constant - (256.0f / 5.0f) * maxBrightness))) / (2.0f * quadratic);
+			deferred_shaders.SetFloat("lights[" + std::to_string(i) + "].Radius", radius);
+		}*/
+
+		deferred_shaders.SetVec3("directional_light.direction", directional_light_direction);
+		deferred_shaders.SetVec3("directional_light.ambient", directional_light_ambient);
+		deferred_shaders.SetVec3("directional_light.diffuse", directional_light_diffuse);
+
+		deferred_shaders.SetVec3("viewPos", camera_position);
+
+		if (quad_vao == 0)
+		{
+			float quadVertices[] = {
+				-1.0f,  1.0f, 0.0f, 0.0f, 1.0f,
+				-1.0f, -1.0f, 0.0f, 0.0f, 0.0f,
+				 1.0f,  1.0f, 0.0f, 1.0f, 1.0f,
+				 1.0f, -1.0f, 0.0f, 1.0f, 0.0f,
+			};
+			glGenVertexArrays(1, &quad_vao);
+			glGenBuffers(1, &quad_vbo);
+			glBindVertexArray(quad_vao);
+			glBindBuffer(GL_ARRAY_BUFFER, quad_vbo);
+			glBufferData(GL_ARRAY_BUFFER, sizeof(quadVertices), &quadVertices, GL_STATIC_DRAW);
+			glEnableVertexAttribArray(0);
+			glVertexAttribPointer(0, 3, GL_FLOAT, GL_FALSE, 5 * sizeof(float), (void*)0);
+			glEnableVertexAttribArray(1);
+			glVertexAttribPointer(1, 2, GL_FLOAT, GL_FALSE, 5 * sizeof(float), (void*)(3 * sizeof(float)));
+		}
 
 		glBindVertexArray(quad_vao);
-		glDrawArrays(GL_TRIANGLES, 0, 6);
+		glDrawArrays(GL_TRIANGLE_STRIP, 0, 4);
+		glBindVertexArray(0);
 
-		/*
-		glEnable(GL_BLEND);
-		glBlendEquation(GL_FUNC_ADD);
-		glBlendFunc(GL_ONE, GL_ONE);
-		glDepthFunc(GL_EQUAL);
-		
-		// point lights
+		glBindFramebuffer(GL_READ_FRAMEBUFFER, gBuffer);
+		glBindFramebuffer(GL_DRAW_FRAMEBUFFER, 0);
+		glBlitFramebuffer(0, 0, window_width, window_height, 0, 0, window_width, window_height, GL_DEPTH_BUFFER_BIT, GL_NEAREST);
+		glBindFramebuffer(GL_FRAMEBUFFER, 0);
+
+		// render skydome
 		{
-			point_lit_object_shaders.Use();
-			point_lit_object_shaders.SetVec3("point_light.position", point_light_position);
-			point_lit_object_shaders.SetFloat("point_light.constant", 1.0f);
-			point_lit_object_shaders.SetFloat("point_light.linear", 0.09f);
-			point_lit_object_shaders.SetFloat("point_light.quadratic", 0.032f);
-			point_lit_object_shaders.SetVec3("point_light.diffuse", point_light_color);
-			point_lit_object_shaders.SetVec3("point_light.ambient", glm::vec3(0.1f));
-			point_lit_object_shaders.SetVec3("point_light.specular", glm::vec3(1.0f));
-
-			light_source_shaders.Use();
-			light_source_shaders.SetVec3("light_color", point_light_color);
-
 			glm::mat4 model = glm::mat4(1.0f);
-			model = glm::translate(model, point_light_position);
-			model = glm::scale(model, glm::vec3(0.2f));
-			light_source_shaders.SetMatrix4("model", model);
-			light_source_shaders.SetMatrix4("view", view);
-			light_source_shaders.SetMatrix4("projection", projection);
-
-			glDepthFunc(GL_LESS);
-			glBindVertexArray(light_vao);
-			glDrawArrays(GL_TRIANGLES, 0, 36);
-			glBindVertexArray(0);
-			glDepthFunc(GL_EQUAL);
+			model = glm::scale(model, glm::vec3(250.0f, 250.0f, 250.0f));
+			sky_shaders.Use();
+			sky_shaders.SetMatrix4("model", model);
+			sky_shaders.SetMatrix4("view", view);
+			sky_shaders.SetMatrix4("projection", projection);
+			sky_shaders.SetFloat("red_factor", red_factor);
+			sky_shaders.SetFloat("green_factor", green_factor);
+			sky_shaders.SetFloat("blue_factor", blue_factor);
+			skydome_model.Draw(sky_shaders);
 		}
 
-		point_lit_object_shaders.Use();
-
-		{
-			point_lit_object_shaders.SetFloat("tiling", 1.0f);
-			glm::mat4 model = glm::mat4(1.0f);
-			model = glm::translate(model, glm::vec3(0.5f, 0.0f, 0.0f));
-			draw_model(test_model1, point_lit_object_shaders, camera_position, model, view, projection);
-		}
-
-		{
-			point_lit_object_shaders.SetFloat("tiling", 1.0f);
-			glm::mat4 model = glm::mat4(1.0f);
-			model = glm::translate(model, glm::vec3(-0.5f, 0.0f, 0.0f));
-			draw_model(test_model2, point_lit_object_shaders, camera_position, model, view, projection);
-		}
-
-		{
-			point_lit_object_shaders.SetFloat("tiling", 40.0f);
-			glm::mat4 model = glm::mat4(1.0f);
-			model = glm::translate(model, glm::vec3(-30.0f, -1.0f, -30.0f));
-			draw_model(terrain_model, point_lit_object_shaders, camera_position, model, view, projection);
-		}
-		
-		
-		// point lights
-		{
-			point_lit_object_shaders.Use();
-			point_lit_object_shaders.SetVec3("point_light.position", point_light2_position);
-			point_lit_object_shaders.SetFloat("point_light.constant", 1.0f);
-			point_lit_object_shaders.SetFloat("point_light.linear", 0.09f);
-			point_lit_object_shaders.SetFloat("point_light.quadratic", 0.032f);
-			point_lit_object_shaders.SetVec3("point_light.diffuse", point_light2_color);
-			point_lit_object_shaders.SetVec3("point_light.ambient", glm::vec3(0.1f));
-			point_lit_object_shaders.SetVec3("point_light.specular", glm::vec3(1.0f));
-
-			light_source_shaders.Use();
-			light_source_shaders.SetVec3("light_color", point_light2_color);
-
-			glm::mat4 model = glm::mat4(1.0f);
-			model = glm::translate(model, point_light2_position);
-			model = glm::scale(model, glm::vec3(0.2f));
-			light_source_shaders.SetMatrix4("model", model);
-			light_source_shaders.SetMatrix4("view", view);
-			light_source_shaders.SetMatrix4("projection", projection);
-
-			glDepthFunc(GL_LESS);
-			glBindVertexArray(light_vao);
-			glDrawArrays(GL_TRIANGLES, 0, 36);
-			glBindVertexArray(0);
-			glDepthFunc(GL_EQUAL);
-		}
-
-		point_lit_object_shaders.Use();
-
-		{
-			point_lit_object_shaders.SetFloat("tiling", 1.0f);
-			glm::mat4 model = glm::mat4(1.0f);
-			model = glm::translate(model, glm::vec3(0.5f, 0.0f, 0.0f));
-			draw_model(test_model1, point_lit_object_shaders, camera_position, model, view, projection);
-		}
-
-		{
-			point_lit_object_shaders.SetFloat("tiling", 1.0f);
-			glm::mat4 model = glm::mat4(1.0f);
-			model = glm::translate(model, glm::vec3(-0.5f, 0.0f, 0.0f));
-			draw_model(test_model2, point_lit_object_shaders, camera_position, model, view, projection);
-		}
-
-		{
-			point_lit_object_shaders.SetFloat("tiling", 40.0f);
-			glm::mat4 model = glm::mat4(1.0f);
-			model = glm::translate(model, glm::vec3(-30.0f, -1.0f, -30.0f));
-			draw_model(terrain_model, point_lit_object_shaders, camera_position, model, view, projection);
-		}*/
-		
 		if (show_debug_menu) {
 			render_debug_menu();
 		}
@@ -637,36 +414,6 @@ void draw_model(Model model, Shader shader, glm::vec3 camera_position, glm::mat4
 	shader.SetMatrix4("view", m_view);
 	shader.SetMatrix4("projection", m_projection);
 	model.Draw(shader);
-}
-
-unsigned int load_cubemap(std::vector<std::string> faces)
-{
-	unsigned int textureID;
-	glGenTextures(1, &textureID);
-	glBindTexture(GL_TEXTURE_CUBE_MAP, textureID);
-
-	int width, height, nrChannels;
-	for (unsigned int i = 0; i < faces.size(); i++)
-	{
-		unsigned char* data = stbi_load(faces[i	].c_str(), &width, &height, &nrChannels, 0);
-		if (data)
-		{
-			glTexImage2D(GL_TEXTURE_CUBE_MAP_POSITIVE_X + i, 0, GL_RGB, width, height, 0, GL_RGB, GL_UNSIGNED_BYTE, data);
-			stbi_image_free(data);
-		}
-		else
-		{
-			std::cout << "Cubemap texture failed to load at path: " << faces[i] << std::endl;
-			stbi_image_free(data);
-		}
-	}
-	glTexParameteri(GL_TEXTURE_CUBE_MAP, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
-	glTexParameteri(GL_TEXTURE_CUBE_MAP, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
-	glTexParameteri(GL_TEXTURE_CUBE_MAP, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE);
-	glTexParameteri(GL_TEXTURE_CUBE_MAP, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE);
-	glTexParameteri(GL_TEXTURE_CUBE_MAP, GL_TEXTURE_WRAP_R, GL_CLAMP_TO_EDGE);
-
-	return textureID;
 }
 
 void framebuffer_size_callback(GLFWwindow* window, int width, int height) {
@@ -769,9 +516,10 @@ void render_debug_menu() {
 
 		ImGui::ColorEdit3("Clear Color", (float*)&clear_color);
 
+
 		ImGui::Separator();
 
-		ImGui::DragFloat("Fog Intensity", &fog_intensity, 0.1f, 0.0f, 40.0f);
+		ImGui::DragFloat("Camera Speed", &base_camera_speed, 0.5f, 1.0f, 50.0f);
 
 		ImGui::Separator();
 
@@ -783,12 +531,13 @@ void render_debug_menu() {
 		ImGui::ColorEdit3("Specular", (float*)&directional_light_specular);
 
 		ImGui::Separator();
-		ImGui::DragFloat3("Point Light Pos.", (float*)&(point_light_position), 0.01f);
-		ImGui::ColorEdit3("Point Light Col.", (float*)&(point_light_color));
+		ImGui::DragFloat("Fog Intensity", &fog_intensity, 0.1f, 0, 100);
 
 		ImGui::Separator();
-		ImGui::DragFloat3("Point Light2 Pos.", (float*)&(point_light2_position), 0.01f);
-		ImGui::ColorEdit3("Point Light2 Col.", (float*)&(point_light2_color));
+		ImGui::Text("Sky");
+		ImGui::DragFloat("Red", &red_factor, 0.01f, 0.0f, 1.0f);
+		ImGui::DragFloat("Green", &green_factor, 0.01f, 0.0f, 1.0f);
+		ImGui::DragFloat("Blue", &blue_factor, 0.01f, 0.0f, 1.0f);
 
 		ImGui::End();
 	}

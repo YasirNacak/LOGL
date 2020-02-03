@@ -16,5 +16,8 @@ public:
 	std::string Type;
 	std::string Path;
 
+	Texture();
+	Texture(unsigned int id, std::string type, std::string path);
+
 	static unsigned int Load(std::string path);
 };
