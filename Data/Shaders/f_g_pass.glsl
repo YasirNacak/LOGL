@@ -20,12 +20,16 @@ float linearize_depth(float depth)  {
 }
 
 void main() {
-    out_f_position = fragment_position;
-    out_f_normal = normalize(normal);
-    out_f_albedo_spec.rgb = texture(texture_diffuse0, texture_coords).rgb;
+	vec4 full_diffuse_col = texture(texture_diffuse0, texture_coords);
+	out_f_albedo_spec.rgb = full_diffuse_col.rgb;
     out_f_albedo_spec.a = texture(texture_specular0, texture_coords).r;
     
-    float linear_depth = linearize_depth(gl_FragCoord.z) / far;
+    if(full_diffuse_col.a < 0.5f) {
+    	discard;
+    }
 
+    out_f_position = fragment_position;
+    out_f_normal = normalize(normal);
+    float linear_depth = linearize_depth(gl_FragCoord.z) / far;
     out_f_depth = vec4(vec3(linear_depth), 1.0);
 }

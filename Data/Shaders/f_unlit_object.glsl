@@ -1,15 +1,12 @@
 #version 330 core
 
-struct Material {
-	sampler2D texture_diffuse0;
-};
-
 in vec2 texture_coords;
 
 out vec4 out_color;
 
-uniform Material material;
+uniform sampler2D texture_diffuse0;
 
 void main() {
-	out_color = texture(material.texture_diffuse0, texture_coords);
+	vec4 col = texture(texture_diffuse0, texture_coords);
+	out_color = col;
 }

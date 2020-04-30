@@ -101,8 +101,8 @@ float Terrain::GetHeight(int x, int z, unsigned char* heightmap, int heightmap_s
 
     float height = 0;
     height = r / 255.0f;
-    height *= 5.0f;
-    height -= 20.0f;
+    //height *= 2.5f;
+    //height -= 2.0f;
 
     //std::cout << "height: " << height << std::endl;
 
